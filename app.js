@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.13.0';
+  const BUILD = window.SAMOS_BUILD || '0.14.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';
@@ -634,7 +634,7 @@
   async function importResource(file){if(!file)return;const id=uid(),type=detectType(file);try{await putFile(id,file);state.resources.push({id,type,title:file.name.replace(/\.[^.]+$/,''),kind:'upload',fileName:file.name,mime:file.type||'',size:file.size||0,createdAt:new Date().toISOString()});state.resourceFilter=type;save(false);toast('Resource uploaded');if(overlay.classList.contains('open'))closeAssistant();state.view='resources';render();}catch(_){toast('This file could not be saved on this device');}$('#resourceFileInput').value='';}
   async function openResource(id){const r=state.resources.find(x=>x.id===id);if(!r)return;try{const blob=await getFile(id);if(!blob){toast('Stored file could not be found');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=r.fileName||r.title||'resource';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(_){toast('Resource could not be opened');}}
   async function deleteResource(id){const r=state.resources.find(x=>x.id===id);if(!r||!confirm(`Delete ${r.title}?`))return;state.resources=state.resources.filter(x=>x.id!==id);if(state.selectedResourceId===id){state.selectedResourceId=null;state.view='resources';}save();if(r.kind==='upload')await removeFile(id);if(r.type==='presentation'){for(const sl of r.slides||[])if(sl.imageKey)await removeFile(sl.imageKey);}toast('Resource deleted');}
-  function openProfile(){$('#teacherNameInput').value=state.settings.teacherName||'';$('#centreInput').value=state.settings.centre||'';$('#profileDialog').showModal();}
+  function openProfile(){$('#teacherNameInput').value=state.settings.teacherName||'';$('#centreInput').value=state.settings.centre||'';$('#profileDialog').showModal();setTimeout(()=>$('#teacherNameInput')?.focus(),60);}
   function saveProfile(){state.settings.teacherName=$('#teacherNameInput').value.trim();state.settings.centre=$('#centreInput').value.trim();save(false);toast('Profile saved');return true;}
 
   /* ---------------- Teaching studio: quizzes, presentations, courses, SOW and KSB links ---------------- */
@@ -649,6 +649,16 @@
   function shortText(text,n=64){const s=String(text||'').trim();return s.length>n?s.slice(0,n-1).trimEnd()+'…':s;}
   function safeFileName(name,ext=''){const base=String(name||'Samos').replace(/[^a-z0-9 _-]+/gi,'').trim().replace(/\s+/g,'-')||'Samos';return base+ext;}
   function downloadBlob(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1800);}
+  async function shareOrDownloadFile(blob,name,title='Samos resource'){
+    try{
+      const file=new File([blob],name,{type:blob.type||'application/octet-stream'});
+      if(navigator.share&&navigator.canShare?.({files:[file]})){
+        try{await navigator.share({title,files:[file]});return 'shared';}
+        catch(err){if(err?.name==='AbortError')return 'cancelled';}
+      }
+    }catch(_){ }
+    downloadBlob(blob,name);return 'downloaded';
+  }
   function toB64Utf8(text){const bytes=new TextEncoder().encode(String(text));let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin);}
   function fromB64Utf8(text){const bin=atob(String(text));const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));return new TextDecoder().decode(bytes);}
   function randomShuffle(items){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
@@ -804,16 +814,30 @@
   function startPresenterAnimations(host){stopPresenterAnimations();const face=host?.querySelector('.samos-presenter');if(!face)return;const looks=['look-title','look-image','look-text','look-class'],fun=['fun-bob','fun-wink','fun-tilt'];let tick=0;presenterTimer=window.setInterval(()=>{if(!face.isConnected){stopPresenterAnimations();return;}face.classList.remove(...looks,...fun);face.classList.add(looks[tick%looks.length]);if(tick%4===3)face.classList.add(fun[Math.floor(tick/4)%fun.length]);tick++;},3200);}
   function stopPresenterAnimations(){if(presenterTimer){clearInterval(presenterTimer);presenterTimer=0;}}
 
+  function fullscreenElement(){return document.fullscreenElement||document.webkitFullscreenElement||null;}
+  async function togglePlayerFullscreen(){
+    const host=document.querySelector('.classroom-player.open');if(!host)return;
+    try{
+      if(fullscreenElement()){
+        const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit)await exit.call(document);
+      }else{
+        const request=host.requestFullscreen||host.webkitRequestFullscreen;if(!request){toast('Full screen is not available on this browser');return;}await request.call(host);
+      }
+    }catch(_){toast('Full screen could not be started');}
+  }
+  function exitPlayerFullscreen(){try{if(fullscreenElement()){const exit=document.exitFullscreen||document.webkitExitFullscreen;exit?.call(document);}}catch(_){}}
+  function updateFullscreenButton(){const b=document.querySelector('.classroom-player.open [data-toggle-fullscreen]');if(!b)return;const on=Boolean(fullscreenElement());b.textContent=on?'↙':'⛶';b.title=on?'Exit full screen':'Full screen';b.setAttribute('aria-label',b.title);}
+
   function openQuizPlayer(id){const q=state.resources.find(r=>r.id===id&&r.type==='quiz');if(!q)return;closeAssistant();playerState={kind:'quiz',id:q.id,index:-1,reveal:false};renderQuizPlayer();}
   function renderQuizPlayer(){const host=$('#quizPlayer'),q=state.resources.find(r=>r.id===playerState?.id);if(!host||!q){closeClassroomPlayer();return;}host.classList.add('open');host.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
-    if(playerState.index<0){host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>LIVE QUIZ</small><strong>${esc(q.title)}</strong></span><button class="player-close" type="button" data-close-player>×</button></div><div class="player-body">${presenterFace()}<div class="quiz-join"><h1>Join the quiz</h1><p>Learners scan this with the Samos Quiz feature in Evia. The QR contains only the quiz ID, number of questions and the A/B/C/D answer key — no question or answer wording.</p><div id="liveQuizQr" class="share-qr"></div><p>${q.questions.length} questions · completely offline</p></div></div><div class="player-controls"><button class="primary" type="button" data-quiz-player-start>Start question 1</button></div></div>`;try{window.SamosQR?.render($('#liveQuizQr'),quizLearnerPayload(q),286);}catch(_){$('#liveQuizQr').innerHTML='<p>QR could not be generated.</p>';}startPresenterAnimations(host);return;}
-    if(playerState.index>=q.questions.length){host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>LIVE QUIZ</small><strong>${esc(q.title)}</strong></span><button class="player-close" type="button" data-close-player>×</button></div><div class="player-body">${presenterFace()}<div class="quiz-finish"><h1>Quiz complete</h1><p>Learners keep their score on their own device. If you want to record a result in Samos, scan the learner’s result QR afterwards.</p></div></div><div class="player-controls"><button type="button" data-close-player>Finish</button><button class="primary" type="button" data-import-quiz-result="${attr(q.id)}">Import a result</button></div></div>`;startPresenterAnimations(host);return;}
-    const qu=q.questions[playerState.index],answers=qu.answers.filter(Boolean);host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>QUESTION ${playerState.index+1} OF ${q.questions.length}</small><strong>${esc(q.title)}</strong></span><button class="player-close" type="button" data-close-player>×</button></div><div class="player-body">${presenterFace()}<div class="quiz-question-stage"><div class="quiz-progress">Question ${playerState.index+1} / ${q.questions.length}</div><h1>${esc(qu.text)}</h1><div class="quiz-live-answers">${answers.map((a,i)=>`<div class="quiz-live-answer ${playerState.reveal&&i===Number(qu.correct)?'correct':''}"><b>${LETTERS[i]}</b><span>${esc(a)}</span></div>`).join('')}</div></div></div><div class="player-controls"><button type="button" data-quiz-player-prev ${playerState.index===0?'disabled':''}>Back</button>${playerState.reveal?`<button class="primary" type="button" data-quiz-player-next>${playerState.index===q.questions.length-1?'Finish':'Next question'}</button>`:'<button class="primary" type="button" data-quiz-player-reveal>Reveal answer</button>'}</div></div>`;startPresenterAnimations(host);}
+    if(playerState.index<0){host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>LIVE QUIZ</small><strong>${esc(q.title)}</strong></span><div class="player-top-actions"><button class="player-fullscreen" type="button" data-toggle-fullscreen aria-label="Toggle full screen" title="Full screen">⛶</button><button class="player-close" type="button" data-close-player aria-label="Close">×</button></div></div><div class="player-body">${presenterFace()}<div class="quiz-join"><h1>Join the quiz</h1><p>Learners scan this with the Samos Quiz feature in Evia. The QR contains only the quiz ID, number of questions and the A/B/C/D answer key — no question or answer wording.</p><div id="liveQuizQr" class="share-qr"></div><p>${q.questions.length} questions · completely offline</p></div></div><div class="player-controls"><button class="primary" type="button" data-quiz-player-start>Start question 1</button></div></div>`;try{window.SamosQR?.render($('#liveQuizQr'),quizLearnerPayload(q),286);}catch(_){$('#liveQuizQr').innerHTML='<p>QR could not be generated.</p>';}startPresenterAnimations(host);updateFullscreenButton();return;}
+    if(playerState.index>=q.questions.length){host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>LIVE QUIZ</small><strong>${esc(q.title)}</strong></span><div class="player-top-actions"><button class="player-fullscreen" type="button" data-toggle-fullscreen aria-label="Toggle full screen" title="Full screen">⛶</button><button class="player-close" type="button" data-close-player aria-label="Close">×</button></div></div><div class="player-body">${presenterFace()}<div class="quiz-finish"><h1>Quiz complete</h1><p>Learners keep their score on their own device. If you want to record a result in Samos, scan the learner’s result QR afterwards.</p></div></div><div class="player-controls"><button type="button" data-close-player>Finish</button><button class="primary" type="button" data-import-quiz-result="${attr(q.id)}">Import a result</button></div></div>`;startPresenterAnimations(host);updateFullscreenButton();return;}
+    const qu=q.questions[playerState.index],answers=qu.answers.filter(Boolean);host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>QUESTION ${playerState.index+1} OF ${q.questions.length}</small><strong>${esc(q.title)}</strong></span><div class="player-top-actions"><button class="player-fullscreen" type="button" data-toggle-fullscreen aria-label="Toggle full screen" title="Full screen">⛶</button><button class="player-close" type="button" data-close-player aria-label="Close">×</button></div></div><div class="player-body">${presenterFace()}<div class="quiz-question-stage"><div class="quiz-progress">Question ${playerState.index+1} / ${q.questions.length}</div><h1>${esc(qu.text)}</h1><div class="quiz-live-answers">${answers.map((a,i)=>`<div class="quiz-live-answer ${playerState.reveal&&i===Number(qu.correct)?'correct':''}"><b>${LETTERS[i]}</b><span>${esc(a)}</span></div>`).join('')}</div></div></div><div class="player-controls"><button type="button" data-quiz-player-prev ${playerState.index===0?'disabled':''}>Back</button>${playerState.reveal?`<button class="primary" type="button" data-quiz-player-next>${playerState.index===q.questions.length-1?'Finish':'Next question'}</button>`:'<button class="primary" type="button" data-quiz-player-reveal>Reveal answer</button>'}</div></div>`;startPresenterAnimations(host);updateFullscreenButton();}
 
   async function openPresentationPlayer(id){const p=state.resources.find(r=>r.id===id&&r.type==='presentation');if(!p)return;closeAssistant();playerState={kind:'presentation',id:p.id,index:0};await renderPresentationPlayer();}
   async function renderPresentationPlayer(){const host=$('#presentationPlayer'),p=state.resources.find(r=>r.id===playerState?.id);if(!host||!p){closeClassroomPlayer();return;}if(playerState.index<0)playerState.index=0;if(playerState.index>=p.slides.length)playerState.index=p.slides.length-1;const sl=p.slides[playerState.index]||{};let image='';if(sl.imageKey){try{const blob=await getFile(sl.imageKey);if(blob)image=URL.createObjectURL(blob);}catch(_){}}
-    host.classList.add('open');host.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';const sentences=String(sl.text||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>SLIDE ${playerState.index+1} OF ${p.slides.length}</small><strong>${esc(p.title)}</strong></span><button class="player-close" type="button" data-close-player>×</button></div><div class="player-body">${presenterFace()}<article class="presentation-slide"><h1>${esc(sl.title||p.title)}</h1><div class="slide-image ${image?'':'empty'}">${image?`<img src="${image}" alt="">`:'<span>Add an image when editing this slide</span>'}</div><div class="slide-sentences">${sentences.length?sentences.map(x=>`<p>${esc(x)}</p>`).join(''):'<p>Add short teaching sentences when editing this slide.</p>'}</div></article></div><div class="player-controls"><button type="button" data-presentation-prev ${playerState.index===0?'disabled':''}>Back</button>${playerState.index===p.slides.length-1?'<button class="primary" type="button" data-close-player>Finish</button>':'<button class="primary" type="button" data-presentation-next>Next slide</button>'}</div></div>`;if(image)setTimeout(()=>URL.revokeObjectURL(image),60000);startPresenterAnimations(host);}
-  function closeClassroomPlayer(){stopPresenterAnimations();for(const id of ['quizPlayer','presentationPlayer']){const h=$(`#${id}`);h?.classList.remove('open');h?.setAttribute('aria-hidden','true');if(h)h.innerHTML='';}playerState=null;document.body.style.overflow='';}
+    host.classList.add('open');host.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';const sentences=String(sl.text||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);host.innerHTML=`<div class="player-shell"><div class="player-topbar"><span><small>SLIDE ${playerState.index+1} OF ${p.slides.length}</small><strong>${esc(p.title)}</strong></span><div class="player-top-actions"><button class="player-fullscreen" type="button" data-toggle-fullscreen aria-label="Toggle full screen" title="Full screen">⛶</button><button class="player-close" type="button" data-close-player aria-label="Close">×</button></div></div><div class="player-body">${presenterFace()}<article class="presentation-slide"><h1>${esc(sl.title||p.title)}</h1><div class="slide-image ${image?'':'empty'}">${image?`<img src="${image}" alt="">`:'<span>Add an image when editing this slide</span>'}</div><div class="slide-sentences">${sentences.length?sentences.map(x=>`<p>${esc(x)}</p>`).join(''):'<p>Add short teaching sentences when editing this slide.</p>'}</div></article></div><div class="player-controls"><button type="button" data-presentation-prev ${playerState.index===0?'disabled':''}>Back</button>${playerState.index===p.slides.length-1?'<button class="primary" type="button" data-close-player>Finish</button>':'<button class="primary" type="button" data-presentation-next>Next slide</button>'}</div></div>`;if(image)setTimeout(()=>URL.revokeObjectURL(image),60000);startPresenterAnimations(host);updateFullscreenButton();}
+  function closeClassroomPlayer(){stopPresenterAnimations();exitPlayerFullscreen();for(const id of ['quizPlayer','presentationPlayer']){const h=$(`#${id}`);h?.classList.remove('open');h?.setAttribute('aria-hidden','true');if(h)h.innerHTML='';}playerState=null;document.body.style.overflow='';}
 
   async function blobToDataUrl(blob){return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(r.error);r.readAsDataURL(blob);});}
   function dataUrlToBlob(data){const [head,body]=String(data).split(',');const mime=(head.match(/data:([^;]+)/)||[])[1]||'application/octet-stream',bin=atob(body||''),arr=Uint8Array.from(bin,c=>c.charCodeAt(0));return new Blob([arr],{type:mime});}
@@ -831,10 +855,10 @@
   }
   function compactQrPackage(pkg){if(pkg.media?.length)return null;const mini={v:1,k:pkg.kind,c:pkg.courses||[],r:pkg.resources||[]};const text=`SM1:${JSON.stringify(mini)}`;return new TextEncoder().encode(text).length<=2200?text:null;}
   async function openShare(kind,id){
-    try{const pkg=await buildSharePackage(kind,id),title=kind==='course'?pkg.courses[0]?.name:pkg.resources[0]?.title;shareContext={kind,id,pkg};$('#shareDialogTitle').textContent=`Share ${title||'item'}`;const qr=compactQrPackage(pkg),body=$('#shareDialogBody');body.innerHTML=`${qr?'<div class="share-qr-wrap"><div id="shareQrCanvas" class="share-qr"></div></div><p class="share-note">This QR carries the Samos item itself. Another Samos app can scan it without an internet connection.</p>':'<div class="share-too-large"><strong>Use the Samos file for this item</strong><span>It contains too much information for a reliable QR code, usually because it includes many sessions or images.</span></div>'}<div class="inline-actions"><button class="blue-button" type="button" data-export-share-file>Export .samos file</button>${qr?'<button class="soft-button" type="button" data-save-share-qr>Save QR</button>':''}</div>${qr?`<details><summary>QR data</summary><div class="share-code">${esc(qr)}</div></details>`:''}`;$('#shareDialog').showModal();if(qr){try{window.SamosQR?.render($('#shareQrCanvas'),qr,286);}catch(_){$('#shareQrCanvas').innerHTML='<p>QR could not be generated.</p>';}}}catch(_){toast('This item could not be prepared for sharing');}
+    try{const pkg=await buildSharePackage(kind,id),title=kind==='course'?pkg.courses[0]?.name:pkg.resources[0]?.title;shareContext={kind,id,pkg};$('#shareDialogTitle').textContent=`Share ${title||'item'}`;const qr=compactQrPackage(pkg),body=$('#shareDialogBody');body.innerHTML=`${qr?'<div class="share-qr-wrap"><div id="shareQrCanvas" class="share-qr"></div></div><p class="share-note">This QR carries the Samos item itself. Another Samos app can scan it without an internet connection.</p>':'<div class="share-too-large"><strong>Use the Samos file for this item</strong><span>It contains too much information for a reliable QR code, usually because it includes many sessions or images.</span></div>'}<div class="inline-actions"><button class="blue-button" type="button" data-export-share-file>Share / export .samos</button>${qr?'<button class="soft-button" type="button" data-save-share-qr>Save QR</button>':''}</div>${qr?`<details><summary>QR data</summary><div class="share-code">${esc(qr)}</div></details>`:''}`;$('#shareDialog').showModal();if(qr){try{window.SamosQR?.render($('#shareQrCanvas'),qr,286);}catch(_){$('#shareQrCanvas').innerHTML='<p>QR could not be generated.</p>';}}}catch(_){toast('This item could not be prepared for sharing');}
   }
-  async function exportShareFile(){if(!shareContext?.pkg)return;const data=JSON.stringify(shareContext.pkg,null,2),title=shareContext.kind==='course'?shareContext.pkg.courses[0]?.name:shareContext.pkg.resources[0]?.title;downloadBlob(new Blob([data],{type:'application/json'}),safeFileName(title||'Samos-resource','.samos'));}
-  function saveShareQr(){const svg=$('#shareQrCanvas svg');if(!svg)return;const text=new XMLSerializer().serializeToString(svg);downloadBlob(new Blob([text],{type:'image/svg+xml'}),safeFileName($('#shareDialogTitle')?.textContent||'Samos-QR','.svg'));}
+  async function exportShareFile(){if(!shareContext?.pkg)return;const data=JSON.stringify(shareContext.pkg,null,2),title=shareContext.kind==='course'?shareContext.pkg.courses[0]?.name:shareContext.pkg.resources[0]?.title;const name=safeFileName(title||'Samos-resource','.samos'),result=await shareOrDownloadFile(new Blob([data],{type:'application/json'}),name,title||'Samos resource');if(result==='shared')toast('Samos file shared');}
+  async function saveShareQr(){const svg=$('#shareQrCanvas svg');if(!svg)return;const text=new XMLSerializer().serializeToString(svg),name=safeFileName($('#shareDialogTitle')?.textContent||'Samos-QR','.svg'),result=await shareOrDownloadFile(new Blob([text],{type:'image/svg+xml'}),name,'Samos QR');if(result==='shared')toast('QR shared');}
   async function importSamosPackage(file){if(!file)return;try{const text=await file.text(),pkg=JSON.parse(text);await importPackageObject(pkg);toast('Samos item imported');if(overlay.classList.contains('open'))closeAssistant();if($('#scanDialog')?.open)closeScanDialog();state.view='resources';state.resourceFilter='all';save();}catch(e){console.error(e);toast('That Samos file could not be imported');}finally{$('#samosPackageInput').value='';}}
   async function importPackageObject(raw){
     const pkg=raw?.v&&raw?.r&&!raw.resources?{v:raw.v,kind:raw.k,courses:raw.c||[],resources:raw.r||[],media:[]}:raw;if(!pkg||!Array.isArray(pkg.resources)||!Array.isArray(pkg.courses))throw new Error('Invalid package');
@@ -846,7 +870,25 @@
   }
   async function parseIncomingCode(text,expectedQuizId=''){const raw=String(text||'').trim();if(raw.startsWith('SM1:')){const mini=JSON.parse(raw.slice(4));await importPackageObject(mini);toast('Samos item imported');closeScanDialog();state.view='resources';state.resourceFilter='all';save();return;}if(raw.startsWith('SQR1:')){const result=JSON.parse(raw.slice(5)),qid=expectedQuizId||result.q,quiz=state.resources.find(r=>r.id===qid&&r.type==='quiz');if(!quiz)throw new Error('Quiz not found');quiz.results=Array.isArray(quiz.results)?quiz.results:[];quiz.results.push({learner:String(result.n||'Learner').slice(0,60),answers:String(result.a||''),score:Number(result.s)||0,receivedAt:nowIso(),dateLabel:new Date().toLocaleString('en-GB')});save(false);toast('Quiz result saved');closeScanDialog();state.view='resource';state.selectedResourceId=quiz.id;render();return;}throw new Error('Unsupported QR');}
   async function openScanDialog(mode='import',quizId=''){$('#scanDialogTitle').textContent=mode==='result'?'Import learner result':'Scan Samos QR';const body=$('#scanDialogBody');body.innerHTML=`<div id="nativeScanArea"></div><div class="scan-fallback"><label class="ta-field"><span>Or paste the QR data</span><textarea id="scanPasteInput" placeholder="SM1:...${mode==='result'?' or SQR1:...':''}"></textarea></label><button class="blue-button full" type="button" data-use-pasted-qr data-scan-mode="${attr(mode)}" data-quiz-id="${attr(quizId)}">Import code</button>${mode==='import'?'<button class="soft-button full" type="button" data-pick-samos-file>Import .samos file instead</button>':''}</div>`;$('#scanDialog').showModal();await startNativeQrScan(mode,quizId);}
-  async function startNativeQrScan(mode,quizId){const area=$('#nativeScanArea');if(!area)return;if(!('BarcodeDetector' in window)||!navigator.mediaDevices?.getUserMedia){area.innerHTML='<div class="share-too-large"><strong>Camera QR scanning is not available on this browser</strong><span>Paste the QR data or use a .samos file. Nothing is sent online.</span></div>';return;}try{const formats=await BarcodeDetector.getSupportedFormats?.();if(formats&& !formats.includes('qr_code'))throw new Error();const detector=new BarcodeDetector({formats:['qr_code']});qrScanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});area.innerHTML='<video id="qrScanVideo" class="scan-video" playsinline muted></video><p class="share-note">Hold the Samos QR inside the camera view.</p>';const v=$('#qrScanVideo');v.srcObject=qrScanStream;await v.play();qrScanTimer=window.setInterval(async()=>{if(!v.isConnected||v.readyState<2)return;try{const found=await detector.detect(v);if(found?.[0]?.rawValue){clearInterval(qrScanTimer);qrScanTimer=0;await parseIncomingCode(found[0].rawValue,quizId);}}catch(_){}},450);}catch(_){stopQrScan();area.innerHTML='<div class="share-too-large"><strong>Camera could not start</strong><span>Paste the QR data or use a .samos file instead.</span></div>';}}
+  async function startNativeQrScan(mode,quizId){
+    const area=$('#nativeScanArea');if(!area)return;
+    if(!('BarcodeDetector' in window)||!navigator.mediaDevices?.getUserMedia){area.innerHTML='<div class="share-too-large"><strong>Camera QR scanning is not available on this browser</strong><span>Paste the QR data or use a .samos file. Nothing is sent online.</span></div>';return;}
+    try{
+      const formats=await BarcodeDetector.getSupportedFormats?.();if(formats&&!formats.includes('qr_code'))throw new Error('qr unsupported');
+      const detector=new BarcodeDetector({formats:['qr_code']});
+      const attempts=[
+        {video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false},
+        {video:{width:{ideal:1280},height:{ideal:720}},audio:false},
+        {video:true,audio:false}
+      ];
+      let lastError=null;
+      for(const constraints of attempts){try{qrScanStream=await navigator.mediaDevices.getUserMedia(constraints);if(qrScanStream)break;}catch(err){lastError=err;}}
+      if(!qrScanStream)throw lastError||new Error('camera unavailable');
+      area.innerHTML='<video id="qrScanVideo" class="scan-video" playsinline muted autoplay></video><p class="share-note">Hold the Samos QR inside the camera view.</p>';
+      const v=$('#qrScanVideo');v.srcObject=qrScanStream;await v.play();
+      qrScanTimer=window.setInterval(async()=>{if(!v.isConnected||v.readyState<2)return;try{const found=await detector.detect(v);if(found?.[0]?.rawValue){clearInterval(qrScanTimer);qrScanTimer=0;await parseIncomingCode(found[0].rawValue,quizId);}}catch(_){}},350);
+    }catch(_){stopQrScan();area.innerHTML='<div class="share-too-large"><strong>Camera could not start</strong><span>Check camera permission, or paste the QR data / use a .samos file instead.</span></div>';}
+  }
   function stopQrScan(){if(qrScanTimer){clearInterval(qrScanTimer);qrScanTimer=0;}if(qrScanStream){qrScanStream.getTracks().forEach(t=>t.stop());qrScanStream=null;}}
   function closeScanDialog(){stopQrScan();try{$('#scanDialog').close();}catch(_){}}
 
@@ -1025,6 +1067,7 @@
     if(b.hasAttribute('data-pick-samos-file'))return $('#samosPackageInput').click();
     if(b.hasAttribute('data-use-pasted-qr')){const text=$('#scanPasteInput')?.value||'';if(!text.trim()){toast('Paste the QR data first');return;}try{await parseIncomingCode(text,b.dataset.quizId||'');}catch(_){toast('That QR code could not be imported');}return;}
     if(b.hasAttribute('data-close-player'))return closeClassroomPlayer();
+    if(b.hasAttribute('data-toggle-fullscreen'))return togglePlayerFullscreen();
     if(b.hasAttribute('data-quiz-player-start')&&b.closest('#quizPlayer')){playerState.index=0;playerState.reveal=false;return renderQuizPlayer();}
     if(b.hasAttribute('data-quiz-player-reveal')&&b.closest('#quizPlayer')){playerState.reveal=true;return renderQuizPlayer();}
     if(b.hasAttribute('data-quiz-player-next')&&b.closest('#quizPlayer')){playerState.index++;playerState.reveal=false;return renderQuizPlayer();}
@@ -1035,6 +1078,32 @@
   });
   $('#scanDialog').addEventListener('close',stopQrScan);
   $('#shareDialog').addEventListener('close',()=>{shareContext=null;});
+
+  function isTypingTarget(target){const tag=target?.tagName?.toLowerCase();return tag==='input'||tag==='textarea'||tag==='select'||target?.isContentEditable;}
+  document.addEventListener('keydown',event=>{
+    if(event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey)return;
+    const typing=isTypingTarget(event.target);
+    if(event.key==='Escape'){
+      if(playerState){event.preventDefault();closeClassroomPlayer();return;}
+      if(document.querySelector('dialog[open]'))return;
+      if(overlay.classList.contains('open')){event.preventDefault();closeAssistant();return;}
+    }
+    if(!playerState||typing)return;
+    if(event.key==='f'||event.key==='F'){event.preventDefault();togglePlayerFullscreen();return;}
+    if(event.key==='ArrowLeft'||event.key==='PageUp'){
+      event.preventDefault();
+      if(playerState.kind==='presentation')document.querySelector('#presentationPlayer [data-presentation-prev]')?.click();
+      else if(playerState.kind==='quiz')document.querySelector('#quizPlayer [data-quiz-player-prev]')?.click();
+      return;
+    }
+    if(event.key==='ArrowRight'||event.key==='PageDown'||event.key===' '){
+      event.preventDefault();
+      if(playerState.kind==='presentation')document.querySelector('#presentationPlayer [data-presentation-next],#presentationPlayer [data-close-player].primary')?.click();
+      else if(playerState.kind==='quiz')document.querySelector('#quizPlayer [data-quiz-player-start],#quizPlayer [data-quiz-player-reveal],#quizPlayer [data-quiz-player-next]')?.click();
+    }
+  });
+  document.addEventListener('fullscreenchange',updateFullscreenButton);
+  document.addEventListener('webkitfullscreenchange',updateFullscreenButton);
 
   document.addEventListener('visibilitychange',()=>{if(!document.hidden){reconcileEndedSessions();render();}});
   window.addEventListener('focus',()=>{reconcileEndedSessions();if(state.view==='registers')render();});

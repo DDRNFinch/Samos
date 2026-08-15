@@ -180,3 +180,121 @@ body:not(.samos-home-centred) main{min-height:100dvh!important;overflow:visible!
 @media(max-width:720px){.presentation-slide{grid-template-columns:1fr;grid-template-rows:auto auto auto;padding-top:64px}.presentation-slide h1{padding-right:0}.presentation-slide .slide-image{min-height:31vh}.samos-presenter{width:68px;height:68px;right:12px}.quiz-live-answers{grid-template-columns:1fr}.quiz-question-stage{padding-top:66px}.quiz-question-stage h1{margin-right:0}.quiz-join h1{margin-right:0}.course-summary-grid{grid-template-columns:1fr 1fr}.resource-rich-row{display:grid}.resource-rich-row .row-actions{max-width:none;justify-content:flex-start}.resource-main{width:100%}}
 @media(max-width:430px){.quiz-type-picks{grid-template-columns:1fr}.quiz-answer-preview{grid-template-columns:1fr}.ksb-match{grid-template-columns:22px 44px minmax(0,1fr)!important}.ksb-match em{grid-column:3}.player-topbar{padding:10px 12px}.player-controls button{min-width:94px}.samos-presenter{width:62px;height:62px;border-width:4px}}
 .review-mini-actions{display:flex;align-items:center;justify-content:flex-end;gap:3px;flex-wrap:wrap}.review-mini-actions button{min-width:30px!important;min-height:30px!important;padding:4px 6px!important;font-size:9px!important}.review-mini-actions button:disabled{opacity:.28;pointer-events:none}
+
+/* v0.14 cross-device layer -------------------------------------------------
+   Mobile keeps the Tilos-sized UI. Wider screens use the same visual system
+   with more usable workspace rather than stretching the phone layout. */
+html{min-height:100%;text-size-adjust:100%;-webkit-text-size-adjust:100%}
+body{min-height:100%;overscroll-behavior-y:none}
+button,[role="button"],input,select,textarea,label{touch-action:manipulation}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{cursor:default}
+input,textarea,select{max-width:100%}
+.samos-dialog,#samosOverlay,.classroom-player{overscroll-behavior:contain}
+.player-top-actions{display:flex;align-items:center;gap:8px}
+.player-fullscreen{width:42px;height:42px;border:1px solid #d5e5dc;border-radius:50%;background:#fff;color:#344c40;font-size:19px;display:grid;place-items:center}
+.player-fullscreen:focus-visible,.player-close:focus-visible,.staff-back:focus-visible,.dialog-close:focus-visible{outline:3px solid rgba(99,196,149,.28);outline-offset:2px}
+
+@media (pointer:coarse){
+  .blue-button,.soft-button,.text-button,.danger-text,.resource-filter button,.segmented button,.header-utility-actions button{min-height:44px}
+  .header-utility-actions button{display:inline-flex!important;align-items:center!important}
+  .review-mini-actions button{min-width:44px!important;min-height:44px!important}
+  .row-actions button{min-height:44px}
+  .vh-arch{min-height:64px}
+  .assign-option,.wizard-learner,.ta-option,.ta-check{min-height:44px}
+  .attendance-timer{min-width:52px;min-height:52px}
+}
+
+@media (max-width:899px){
+  .staff-form input,.staff-form select,.staff-form textarea,.ta-field input,.ta-field select,.ta-field textarea,.v39-learner-tools input{font-size:16px!important}
+  .samos-dialog{max-height:calc(100dvh - 24px);margin:auto}
+  #samosOverlay{height:100dvh;overflow:auto}
+  #samosOverlay .evia-wizard{min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+}
+
+@media (hover:hover) and (pointer:fine){
+  .blue-button:hover{filter:brightness(.96)}
+  .soft-button:hover,.resource-filter button:hover,.segmented button:hover,.player-controls button:hover,.player-fullscreen:hover,.player-close:hover{border-color:#a8d6be;background:#f7fcf9}
+  .samos-row:hover,.learner-row:hover,.v39-learner-row:hover,.resource-main:hover{background:#f7fbf9}
+  .ta-menu button:hover,.ta-choice:hover,.ta-actions button:not(.primary):hover{border-color:#9fd3b8;background:#f6fcf8}
+  .attendance-timer:not(:disabled):hover{filter:brightness(.96);transform:translateY(-1px)}
+}
+
+/* Installed / browser desktop layout. */
+@media (min-width:900px){
+  body:not(.samos-home-centred){background:#eef8f2!important}
+  body:not(.samos-home-centred) main{width:100%!important;max-width:1120px!important;min-height:100dvh!important;margin:0 auto!important;padding:22px 34px 76px!important;border-left:1px solid rgba(99,196,149,.08);border-right:1px solid rgba(99,196,149,.08);box-shadow:0 0 50px rgba(32,91,60,.035)}
+  body:not(.samos-home-centred) .app-header{max-width:1040px;margin:0 auto 12px!important;padding:12px 0 10px!important}
+  body:not(.samos-home-centred) #staffApp{width:100%!important;max-width:1040px!important;margin:0 auto!important}
+
+  /* Home remains visually identical to Tilos, but uses the full desktop canvas. */
+  body.samos-home-centred main{width:100%!important;max-width:none!important;margin:0!important;padding:22px clamp(34px,5vw,80px)!important}
+  body.samos-home-centred .app-header{width:100%;max-width:1120px;margin:0 auto!important}
+  body.samos-home-centred .staff-face-panel{width:460px!important}
+  body.samos-home-centred #staffApp{width:460px!important}
+
+  .staff-page-head{margin:8px 0 18px}.staff-page-head h1{font-size:28px}.staff-page-head small{font-size:10px}
+  .staff-card{padding:18px 20px;margin:12px 0;border-radius:20px}
+  .inline-actions{gap:10px}.blue-button,.soft-button{min-height:46px}
+  .learner-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
+  .learner-row{border:1px solid #e2ede7;border-radius:15px;padding:13px 14px}
+  .profile-attendance-grid{gap:10px}
+  .lesson-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .lesson-detail-block{padding:16px}
+  .quiz-question-list,.slide-review-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ksb-preview-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;max-height:52vh}
+  .course-plan-preview{max-height:52vh}
+  .course-summary-grid{gap:10px}.course-summary-grid>div{padding:13px 8px}.course-summary-grid strong{font-size:19px}
+  .resource-rich-row{padding:14px 8px}.resource-rich-row .row-actions{max-width:none;flex-wrap:nowrap}
+  .sow-session-row{padding:15px}
+  .session-banner{gap:12px}
+
+  /* The assistant gets a wider working canvas while keeping Tilos sizing. */
+  #samosOverlay{padding:14px 24px 24px}
+  #samosOverlay .evia-wizard{width:min(760px,100%);padding-bottom:36px}
+  #samosOverlay #samosContent{max-width:700px}
+  #samosOverlay .evia-stage{height:150px}
+  #samosOverlay .evia-copy{max-width:650px}
+  #samosOverlay .evia-copy h2{font-size:31px}
+  .ta-card{padding:18px 20px;gap:14px}
+  .ta-field textarea{min-height:130px}
+  .wizard-learners{max-height:50vh}
+  .ksb-match-list{max-height:52vh}
+
+  /* Dialogs use desktop space without becoming hard to scan. */
+  .samos-dialog{width:min(720px,calc(100vw - 64px));max-height:min(88vh,900px);padding:24px 26px}
+  .share-dialog,.scan-dialog{width:min(650px,calc(100vw - 64px))}
+  .dialog-head h2{font-size:26px}
+
+  /* Classroom mode is projector/desktop friendly. */
+  .player-topbar{padding:16px 28px}.player-topbar strong{font-size:17px}.player-topbar small{font-size:10px}
+  .player-body{padding:18px clamp(34px,5.5vw,84px) 30px}
+  .player-controls{padding:14px 22px 16px}.player-controls button{min-width:150px;min-height:48px;font-size:14px}
+  .presentation-slide{max-width:1500px;margin:0 auto;gap:34px;padding:32px 0}
+  .presentation-slide .slide-image{min-height:min(58vh,650px)}
+  .quiz-question-stage{max-width:1200px;padding-top:44px}.quiz-live-answer{min-height:118px;padding:22px}
+  .quiz-join{max-width:820px}.quiz-finish{max-width:820px}
+  .samos-presenter{width:92px;height:92px}
+}
+
+@media (min-width:1280px){
+  body:not(.samos-home-centred) main{max-width:1240px!important}
+  body:not(.samos-home-centred) .app-header,body:not(.samos-home-centred) #staffApp{max-width:1160px!important}
+  .learner-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .quiz-question-list,.slide-review-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Android/tablet landscape: keep controls visible when vertical space is tight. */
+@media (orientation:landscape) and (max-height:650px){
+  #samosOverlay .evia-stage{height:94px!important}
+  #samosOverlay .evia-stage .evia-face{width:78px!important;height:78px!important}
+  #samosOverlay .evia-copy h2{font-size:23px!important}
+  #samosOverlay .evia-copy #samosHint{margin-bottom:10px!important}
+  .classroom-player .player-topbar{padding-top:8px;padding-bottom:8px}
+  .classroom-player .player-controls{padding-top:8px;padding-bottom:8px}
+  .presentation-slide{padding-top:12px;padding-bottom:12px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
