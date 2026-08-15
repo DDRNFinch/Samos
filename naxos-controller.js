@@ -67,10 +67,11 @@
   function counts(){
     const state=getState();
     const classes=Array.isArray(state.classes)?state.classes:[];
-    const learners=classes.reduce((sum,c)=>sum+(Array.isArray(c.learners)?c.learners.length:0),0);
+    const learners=Array.isArray(state.learners)?state.learners.length:classes.reduce((sum,c)=>sum+(Array.isArray(c.learners)?c.learners.length:0),0);
     const history=Array.isArray(state.history)?state.history.length:0;
+    const resources=Array.isArray(state.resources)?state.resources.length:0;
     const attendance=state.attendance&&typeof state.attendance==='object'?Object.keys(state.attendance).length:0;
-    return {classes,learners,history,attendance};
+    return {classes,learners,history,resources,attendance};
   }
 
   function renderHome(){
@@ -88,8 +89,8 @@
     view='overview';title.textContent='Classroom data';hint.textContent='Samos local data overview';
     const c=counts();const state=getState();const active=(c.classes||[]).find(x=>x.id===state.activeClassId);
     content.innerHTML=`<div class="naxos-page">${pageHead('Classroom data','Counts only. Naxos does not alter attendance or learner records from this page.')}
-      <div class="naxos-summary">${metric('Classes',c.classes.length)}${metric('Learners',c.learners)}${metric('Registers',c.history)}${metric('Attendance days',c.attendance)}</div>
-      <div class="naxos-section"><h4>Active class</h4><p>${active?esc(`${active.name} · ${(active.learners||[]).length} learners`):'No active class selected.'}</p></div>
+      <div class="naxos-summary">${metric('Registers',c.classes.length)}${metric('Learners',c.learners)}${metric('Completed',c.history)}${metric('Resources',c.resources)}</div>
+      <div class="naxos-section"><h4>Active register</h4><p>${active?esc(`${active.name} · ${(active.learners||[]).length} learners`):'No active register selected.'}</p></div>
       <div class="naxos-section"><h4>Storage</h4><p>Register data is stored locally in the browser under <b>samos.classroom.data</b>. Cache repair tools do not delete this register data.</p></div>
     </div>`;
   }
@@ -100,7 +101,7 @@
     checks.push({state:document.querySelector('meta[name="samos-build"]')?.content===BUILD?'ok':'warn',name:'Build metadata',detail:`Running build ${BUILD}.`});
     let storage='ok';try{localStorage.setItem('__samos_health__','1');localStorage.removeItem('__samos_health__');}catch(_){storage='warn';}
     checks.push({state:storage,name:'Local storage',detail:storage==='ok'?'Local classroom storage is writable.':'Local storage could not be written.'});
-    checks.push({state:'ok',name:'Register data model',detail:`${c.classes.length} classes, ${c.learners} learners and ${c.history} completed registers found.`});
+    checks.push({state:'ok',name:'Register data model',detail:`${c.classes.length} register templates, ${c.learners} learners, ${c.resources} resources and ${c.history} completed registers found.`});
     const sw='serviceWorker' in navigator?(navigator.serviceWorker.controller?'ok':'warn'):'warn';
     checks.push({state:sw,name:'Offline shell',detail:sw==='ok'?'A Samos service worker is controlling this page.':'Service worker is not currently controlling this page.'});
     checks.push({state:(innerHeight>500&&innerWidth>280)?'ok':'warn',name:'Viewport',detail:`${innerWidth} × ${innerHeight}. Home uses a locked 100dvh layout.`});
@@ -129,13 +130,13 @@
       <div class="naxos-actions">
         <button class="naxos-action" type="button" data-repair="update"><strong>Check for app update</strong><small>Forces the service worker to check GitHub for the newest Samos shell.</small></button>
         <button class="naxos-action" type="button" data-repair="reload"><strong>Reload interface</strong><small>Reloads Samos while keeping local classroom data.</small></button>
-        <button class="naxos-action danger" type="button" data-repair="cache"><strong>Clear app cache & reload</strong><small>Deletes only Samos cached app files, not classes, learners or register history.</small></button>
+        <button class="naxos-action danger" type="button" data-repair="cache"><strong>Clear app cache & reload</strong><small>Deletes only Samos cached app files, not registers, learners, resources or completed register history.</small></button>
       </div><div class="naxos-status" id="naxosRepairStatus">${esc(message)}</div></div>`;
   }
 
   async function diagnostics(){
     const c=counts();
-    return {generatedAt:new Date().toISOString(),app:'Samos',build:BUILD,developerAssistant:'Naxos',counts:{classes:c.classes.length,learners:c.learners,completedRegisters:c.history,attendanceDays:c.attendance},runtime:{href:location.href,userAgent:navigator.userAgent,viewport:{width:innerWidth,height:innerHeight},standalone:matchMedia('(display-mode: standalone)').matches,serviceWorkerControlled:Boolean(navigator.serviceWorker?.controller)},health:await healthChecks()};
+    return {generatedAt:new Date().toISOString(),app:'Samos',build:BUILD,developerAssistant:'Naxos',counts:{registers:c.classes.length,learners:c.learners,resources:c.resources,completedRegisters:c.history,attendanceDays:c.attendance},runtime:{href:location.href,userAgent:navigator.userAgent,viewport:{width:innerWidth,height:innerHeight},standalone:matchMedia('(display-mode: standalone)').matches,serviceWorkerControlled:Boolean(navigator.serviceWorker?.controller)},health:await healthChecks()};
   }
 
   async function renderDiagnostics(){
@@ -179,7 +180,7 @@
     if(repair){const status=overlay.querySelector('#naxosRepairStatus');try{
       if(repair.dataset.repair==='update'){status.textContent='Checking for update…';status.textContent=await updateOffline();}
       if(repair.dataset.repair==='reload'){location.reload();}
-      if(repair.dataset.repair==='cache'){if(!confirm('Clear only Samos cached app files and reload? Class, learner and register data will stay on this device.'))return;status.textContent='Clearing cached app files…';const n=await clearAppCaches();await updateOffline().catch(()=>{});status.textContent=`Cleared ${n} Samos cache${n===1?'':'s'}. Reloading…`;setTimeout(()=>location.reload(),350);}
+      if(repair.dataset.repair==='cache'){if(!confirm('Clear only Samos cached app files and reload? Register, learner and resource data will stay on this device.'))return;status.textContent='Clearing cached app files…';const n=await clearAppCaches();await updateOffline().catch(()=>{});status.textContent=`Cleared ${n} Samos cache${n===1?'':'s'}. Reloading…`;setTimeout(()=>location.reload(),350);}
     }catch(e){status.textContent=`Repair could not complete: ${e.message||e}`;}return;}
     const diagnostic=event.target.closest('[data-diagnostic]');
     if(diagnostic){const status=overlay.querySelector('#naxosDiagnosticStatus');const report=await diagnostics();const text=JSON.stringify(report,null,2);if(diagnostic.dataset.diagnostic==='copy'){try{await navigator.clipboard.writeText(text);status.textContent='Diagnostic report copied.';}catch(_){status.textContent='Clipboard unavailable. Use Download report instead.';}}else{const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`naxos-samos-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Diagnostic report downloaded locally.';} }

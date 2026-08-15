@@ -1,4 +1,4 @@
-const BUILD='0.4.0';
+const BUILD='0.5.0';
 const CACHE=`samos-${BUILD}`;
 const CORE=[
   './',
@@ -11,8 +11,18 @@ const CORE=[
   `./icon-512.png?v=${BUILD}`
 ];
 
+async function cacheFreshShell(){
+  const cache=await caches.open(CACHE);
+  for(const url of CORE){
+    try{
+      const response=await fetch(url,{cache:'no-store'});
+      if(response&&response.ok)await cache.put(url,response.clone());
+    }catch(_){ }
+  }
+}
+
 self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));
+  event.waitUntil(cacheFreshShell().then(()=>self.skipWaiting()));
 });
 
 self.addEventListener('activate',event=>{
@@ -26,6 +36,10 @@ self.addEventListener('activate',event=>{
       try{await client.navigate(client.url);}catch(_){ }
     }
   })());
+});
+
+self.addEventListener('message',event=>{
+  if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
 });
 
 async function networkFirst(request){
