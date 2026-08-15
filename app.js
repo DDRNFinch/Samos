@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.5.0';
+  const BUILD = window.SAMOS_BUILD || '0.6.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';
@@ -518,11 +518,11 @@
   function openAssistantMenu(){
     assistantMenuSection=null;
     renderAssistantMenu();
-    const overlay=$('#samosMenuOverlay');overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');
+    const overlay=$('#samosMenuOverlay');overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');document.body.classList.add('samos-open');
   }
 
   function closeAssistantMenu(){
-    const overlay=$('#samosMenuOverlay');if(!overlay)return;overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');assistantMenuSection=null;
+    const overlay=$('#samosMenuOverlay');if(!overlay)return;overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');document.body.classList.remove('samos-open');assistantMenuSection=null;
   }
 
   function menuTile(icon,title,copy,attrs=''){
@@ -534,7 +534,7 @@
     const back=$('#samosMenuBack'),title=$('#samosMenuTitle'),content=$('#samosMenuContent');
     back.classList.toggle('hidden',!assistantMenuSection);
     if(!assistantMenuSection){
-      title.textContent='What do you need?';
+      title.textContent='What would you like to do?';
       content.innerHTML=[
         menuTile('L','Learners','View your learner list or create a learner.','data-menu-root="learners"'),
         menuTile('R','Registers','Open today’s register, manage registers or create one.','data-menu-root="registers"'),

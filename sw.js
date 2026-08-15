@@ -1,4 +1,4 @@
-const BUILD='0.5.0';
+const BUILD='0.6.0';
 const CACHE=`samos-${BUILD}`;
 const CORE=[
   './',
@@ -8,7 +8,11 @@ const CORE=[
   `./naxos-controller.js?v=${BUILD}`,
   `./manifest.webmanifest?v=${BUILD}`,
   `./icon-192.png?v=${BUILD}`,
-  `./icon-512.png?v=${BUILD}`
+  `./icon-512.png?v=${BUILD}`,
+  `./icon-maskable-192.png?v=${BUILD}`,
+  `./icon-maskable-512.png?v=${BUILD}`,
+  `./apple-touch-icon.png?v=${BUILD}`,
+  `./favicon-32.png?v=${BUILD}`
 ];
 
 async function cacheFreshShell(){
@@ -33,7 +37,6 @@ self.addEventListener('activate',event=>{
     const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
     for(const client of windows){
       try{client.postMessage({type:'SAMOS_BUILD_ACTIVATED',build:BUILD});}catch(_){ }
-      try{await client.navigate(client.url);}catch(_){ }
     }
   })());
 });

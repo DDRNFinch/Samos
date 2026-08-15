@@ -3,40 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#829a8d">
+  <meta name="theme-color" content="#63b98e">
   <meta name="application-name" content="Samos">
-  <meta name="samos-build" content="0.5.0">
+  <meta name="samos-build" content="0.6.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Samos">
   <title>Samos · Classroom Assistant</title>
-  <link rel="manifest" href="manifest.webmanifest?v=0.5.0">
-  <link rel="apple-touch-icon" href="icon-192.png?v=0.5.0">
-  <link rel="icon" href="icon-192.png?v=0.5.0">
-  <link rel="stylesheet" href="styles.css?v=0.5.0">
+  <link rel="manifest" href="manifest.webmanifest?v=0.6.0">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=0.6.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=0.6.0">
+  <link rel="stylesheet" href="styles.css?v=0.6.0">
 </head>
 <body class="home-mode">
   <div class="app-shell">
     <header class="app-header">
-      <button class="brand-block" id="brandHomeBtn" type="button" aria-label="Samos home">
-        <div class="brand-name">Sam<span class="brand-o">o</span>s</div>
-        <div class="brand-sub">CLASSROOM ASSISTANT</div>
-      </button>
-      <div class="brand-actions" aria-label="Samos options">
-        <button class="text-link" id="helpBtn" type="button">Help / Samos</button>
-        <button class="text-link" id="profileBtn" type="button">Profile</button>
+      <div class="app-brand">
+        <button class="brand-block" id="brandHomeBtn" type="button" aria-label="Samos home">
+          <b class="brand-name brand-word" aria-label="Samos">Sam<span class="brand-o">o</span>s</b>
+        </button>
+        <small class="assistant-label">Classroom assistant</small>
+        <nav class="header-utility-actions" aria-label="Samos help and profile">
+          <button class="text-link" id="helpBtn" type="button">Help/Samos</button>
+          <button class="text-link" id="profileBtn" type="button">Profile</button>
+        </nav>
       </div>
     </header>
 
     <main id="mainContent">
       <section class="view home-view active" data-view="home">
-        <section class="assistant-zone" aria-label="Samos assistant">
-          <button class="samos-face-button" id="samosFaceButton" type="button" aria-label="Open Samos menu">
-            <span class="samos-face" id="samosFace">
-              <span class="eye left"></span>
-              <span class="eye right"></span>
-            </span>
-          </button>
+        <section class="home-assistant-panel" aria-label="Samos classroom assistant">
+          <div class="home-samos-space">
+            <div class="home-samos-stage">
+              <button class="samos-face-button samos-face" id="samosFaceButton" type="button" aria-label="Open Samos classroom assistant">
+                <span class="samos-eyes" id="samosFace">
+                  <span class="eye left"></span>
+                  <span class="eye right"></span>
+                </span>
+              </button>
+            </div>
+          </div>
+          <div class="assistant-home-copy">
+            <strong>Classroom</strong>
+            <span>Learners · Registers · Resources</span>
+          </div>
         </section>
       </section>
 
@@ -179,15 +189,22 @@
     </nav>
   </div>
 
-  <section class="samos-menu-overlay" id="samosMenuOverlay" aria-hidden="true">
-    <div class="samos-menu-shell">
+  <section class="samos-menu-overlay" id="samosMenuOverlay" aria-hidden="true" aria-label="Samos classroom assistant">
+    <div class="samos-menu-shell" role="dialog" aria-modal="true" aria-labelledby="samosMenuTitle">
       <div class="samos-menu-topbar">
         <button class="samos-menu-back hidden" id="samosMenuBack" type="button" aria-label="Back">←</button>
-        <div>
-          <p class="eyebrow">SAMOS</p>
-          <h2 id="samosMenuTitle">What do you need?</h2>
+        <span></span>
+        <button class="samos-menu-close" id="samosMenuClose" type="button" aria-label="Close Samos">×</button>
+      </div>
+      <div class="samos-menu-stage" aria-hidden="true">
+        <div class="samos-face menu-face">
+          <span class="samos-eyes"><span class="eye left"></span><span class="eye right"></span></span>
         </div>
-        <button class="samos-menu-close" id="samosMenuClose" type="button" aria-label="Close Samos menu">×</button>
+      </div>
+      <div class="samos-menu-copy">
+        <p class="samos-greeting">Samos</p>
+        <h2 id="samosMenuTitle">What would you like to do?</h2>
+        <p id="samosMenuHint">Classroom workspace.</p>
       </div>
       <div class="samos-menu-content" id="samosMenuContent"></div>
     </div>
@@ -255,8 +272,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script>window.SAMOS_BUILD='0.5.0';</script>
-  <script src="app.js?v=0.5.0"></script>
-  <script src="naxos-controller.js?v=0.5.0"></script>
+  <script>window.SAMOS_BUILD='0.6.0';</script>
+  <script src="app.js?v=0.6.0"></script>
+  <script src="naxos-controller.js?v=0.6.0"></script>
 </body>
 </html>
