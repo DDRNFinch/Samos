@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.6.0';
+  const BUILD = window.SAMOS_BUILD || '0.7.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';
@@ -525,34 +525,50 @@
     const overlay=$('#samosMenuOverlay');if(!overlay)return;overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');document.body.classList.remove('samos-open');assistantMenuSection=null;
   }
 
-  function menuTile(icon,title,copy,attrs=''){
-    return `<button class="samos-menu-tile" type="button" ${attrs}><span class="samos-menu-tile-main"><span class="samos-menu-icon">${icon}</span><span class="samos-menu-copy"><strong>${title}</strong><span>${copy}</span></span></span><span class="samos-menu-chevron">›</span></button>`;
+  function menuTile(title,copy,attrs=''){
+    return `<button class="samos-menu-tile" type="button" ${attrs}><span class="samos-menu-copy"><strong>${title}</strong><span>${copy}</span></span></button>`;
   }
 
   function renderAssistantMenu(section=assistantMenuSection){
     assistantMenuSection=section||null;
-    const back=$('#samosMenuBack'),title=$('#samosMenuTitle'),content=$('#samosMenuContent');
-    back.classList.toggle('hidden',!assistantMenuSection);
+    const back=$('#samosMenuBack'),title=$('#samosMenuTitle'),hint=$('#samosMenuHint'),content=$('#samosMenuContent');
+    back.classList.remove('hidden');
     if(!assistantMenuSection){
-      title.textContent='What would you like to do?';
+      title.textContent='What do you need?';
+      hint.textContent='Everything is organised into three clear areas.';
       content.innerHTML=[
-        menuTile('L','Learners','View your learner list or create a learner.','data-menu-root="learners"'),
-        menuTile('R','Registers','Open today’s register, manage registers or create one.','data-menu-root="registers"'),
-        menuTile('F','Resources','PowerPoints, lesson plans and other teaching resources.','data-menu-root="resources"')
+        menuTile('Learners',`${state.learners.length} learner${state.learners.length===1?'':'s'} saved · view or create learners.`,'data-menu-root="learners"'),
+        menuTile('Registers',`Today’s register, saved registers and register setup.`,'data-menu-root="registers"'),
+        menuTile('Resources',`PowerPoints, lesson plans and teaching resources.`,'data-menu-root="resources"')
       ].join('');
       return;
     }
     if(assistantMenuSection==='learners'){
       title.textContent='Learners';
-      content.innerHTML=[menuTile('L','List of learners','Open the full learner directory.','data-menu-action="learners:list"'),menuTile('+','Create learner','Add a new learner to Samos.','data-menu-action="learners:create"')].join('');
+      hint.textContent='Choose what you want to do with your learners.';
+      content.innerHTML=[
+        menuTile('List of learners','View and manage the learner directory.','data-menu-action="learners:list"'),
+        menuTile('Create learner','Add a new learner to Samos.','data-menu-action="learners:create"')
+      ].join('');
     }
     if(assistantMenuSection==='registers'){
       title.textContent='Registers';
-      content.innerHTML=[menuTile('T',"Today's register",'Open today’s attendance screen.','data-menu-action="registers:today"'),menuTile('R','List of registers','View and manage all saved registers.','data-menu-action="registers:list"'),menuTile('+','Create register','Create a new classroom register.','data-menu-action="registers:create"')].join('');
+      hint.textContent='Open today’s register or manage your register setup.';
+      content.innerHTML=[
+        menuTile("Today's register",'Open today’s attendance screen.','data-menu-action="registers:today"'),
+        menuTile('List of registers','View and manage all saved registers.','data-menu-action="registers:list"'),
+        menuTile('Create register','Create a new classroom register.','data-menu-action="registers:create"')
+      ].join('');
     }
     if(assistantMenuSection==='resources'){
       title.textContent='Resources';
-      content.innerHTML=[menuTile('P','PowerPoints','Open your PowerPoint resource library.','data-menu-action="resources:powerpoints"'),menuTile('L','Lesson plans','Open your lesson plan library.','data-menu-action="resources:lessons"'),menuTile('↑','Upload resource','Add a PowerPoint, PDF, document or image.','data-menu-action="resources:upload"'),menuTile('+','Create resource','Create a lesson plan or teaching resource in Samos.','data-menu-action="resources:create"')].join('');
+      hint.textContent='Open, upload or create your classroom teaching resources.';
+      content.innerHTML=[
+        menuTile('PowerPoints','Open your PowerPoint resource library.','data-menu-action="resources:powerpoints"'),
+        menuTile('Lesson plans','Open your lesson plan library.','data-menu-action="resources:lessons"'),
+        menuTile('Upload resource','Add a PowerPoint, PDF, document or image.','data-menu-action="resources:upload"'),
+        menuTile('Create resource','Create a lesson plan or teaching resource in Samos.','data-menu-action="resources:create"')
+      ].join('');
     }
   }
 
@@ -573,7 +589,7 @@
   function bindEvents(){
     $('#samosFaceButton').addEventListener('click',openAssistantMenu);
     $('#samosMenuClose').addEventListener('click',closeAssistantMenu);
-    $('#samosMenuBack').addEventListener('click',()=>renderAssistantMenu(null));
+    $('#samosMenuBack').addEventListener('click',()=>{if(assistantMenuSection)renderAssistantMenu(null);else closeAssistantMenu();});
     $('#samosMenuOverlay').addEventListener('click',event=>{
       const root=event.target.closest('[data-menu-root]');if(root){renderAssistantMenu(root.dataset.menuRoot);return;}
       const action=event.target.closest('[data-menu-action]');if(action)handleAssistantAction(action.dataset.menuAction);

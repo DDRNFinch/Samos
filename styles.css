@@ -139,3 +139,127 @@ body.samos-open>.app-shell{filter:blur(5px) brightness(.78);transition:filter .3
   .detail-view.active{padding-left:16px;padding-right:16px}.detail-topbar{grid-template-columns:40px 1fr auto}.compact{font-size:11px;padding:8px 10px}
 }
 @media(prefers-reduced-motion:reduce){.samos-face,.eye{animation:none}}
+
+/* v0.7 — exact Tilos-style UI translated to Samos green */
+:root{
+  --green:#63c495;
+  --green-strong:#52b784;
+  --green-deep:#348b62;
+  --green-soft:#e7f7ef;
+  --green-pale:#f0faf5;
+  --line:#d8e8e0;
+  --bg:#eef8f3;
+  --main:#f5fbf8;
+}
+html,body{background:var(--bg)}
+.app-shell{background:var(--main)}
+
+/* Match Tilos assistant overlay: full coloured workspace, not a transparent card overlay. */
+body.samos-open{overflow:hidden}
+body.samos-open>.app-shell{filter:none!important;transition:none!important}
+.samos-menu-overlay{
+  position:fixed;inset:0;z-index:900;
+  background:#eef8f3;
+  opacity:0;visibility:hidden;
+  transition:opacity .28s ease,visibility .28s ease;
+  overflow:auto;
+  padding:max(16px,env(safe-area-inset-top)) 18px max(20px,env(safe-area-inset-bottom));
+}
+.samos-menu-overlay.open{opacity:1;visibility:visible}
+.samos-menu-shell{
+  width:min(650px,100%);min-height:100%;margin:0 auto;padding:0 0 28px;
+  display:flex;flex-direction:column;align-items:stretch;
+}
+.samos-menu-topbar{
+  display:flex;align-items:center;justify-content:space-between;min-height:56px;
+}
+.samos-menu-topbar>span{display:none}
+.samos-menu-back,.samos-menu-close{
+  width:48px;height:48px;border:1px solid rgba(59,99,78,.05);border-radius:50%;
+  background:rgba(255,255,255,.92);color:#29463a;font-size:24px;font-weight:500;
+  display:grid;place-items:center;padding:0;
+  box-shadow:0 8px 24px rgba(44,87,65,.08);
+}
+.samos-menu-back{grid-column:auto}.samos-menu-close{grid-column:auto;margin-left:auto}
+.samos-menu-stage{
+  height:clamp(205px,29vh,280px);position:relative;display:grid;place-items:center;
+}
+.samos-menu-stage .menu-face{
+  width:clamp(128px,23vw,154px)!important;height:clamp(128px,23vw,154px)!important;
+  min-width:128px!important;min-height:128px!important;max-width:154px!important;max-height:154px!important;
+  border-width:7px!important;cursor:default;animation:samosArrive .58s cubic-bezier(.2,.85,.25,1) both;
+  filter:drop-shadow(0 7px 13px rgba(99,196,149,.22));
+}
+.samos-menu-stage .menu-face .eye{border-width:5px!important}
+.samos-menu-copy{text-align:center;margin:0 auto;width:100%}
+.samos-greeting{font-size:14px!important;font-weight:850!important;color:var(--green-deep)!important;margin:0 0 12px!important}
+.samos-menu-copy h2{
+  font-size:clamp(30px,7vw,38px)!important;line-height:1.08!important;letter-spacing:-.035em;
+  margin:0 0 12px!important;color:#151b20;font-weight:900!important;
+}
+.samos-menu-copy>p:last-child{
+  color:#7b8588!important;min-height:20px!important;margin:0 0 34px!important;
+  font-size:clamp(15px,3.8vw,18px)!important;line-height:1.35!important;
+}
+.samos-menu-content{
+  width:100%;display:grid!important;grid-template-columns:1fr!important;gap:16px!important;
+}
+.samos-menu-tile{
+  width:100%;min-height:126px;border:1px solid #d7e2dd;border-radius:25px;
+  background:#fff;color:#161d22;font:inherit;padding:24px 26px;
+  box-shadow:none!important;display:flex;align-items:center;justify-content:flex-start;
+  text-align:left;transition:transform .14s ease,border-color .14s ease,background .14s ease;
+}
+.samos-menu-tile:hover,.samos-menu-tile:focus-visible{border-color:#b7d9c8;background:#fff;outline:none}
+.samos-menu-tile:active{transform:scale(.988)}
+.samos-menu-tile-main,.samos-menu-icon,.samos-menu-chevron{display:none!important}
+.samos-menu-tile>.samos-menu-copy{display:block!important;text-align:left!important;margin:0!important}
+.samos-menu-tile .samos-menu-copy strong{
+  display:block;font-size:clamp(18px,4.4vw,22px)!important;line-height:1.15;font-weight:900;color:#151b20;
+}
+.samos-menu-tile .samos-menu-copy span{
+  display:block;margin-top:8px!important;font-size:clamp(13px,3.4vw,16px)!important;
+  line-height:1.35!important;color:#7a8287!important;font-weight:600!important;
+}
+
+/* Tilos-style page shell and controls */
+body:not(.home-mode) .app-shell{background:#f3faf6}
+.detail-view.active{padding-top:2px}
+.detail-topbar{
+  display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:11px;
+  margin:5px auto 16px;max-width:460px;
+}
+.back-home{
+  width:44px;height:44px;border:1px solid #d7e7df;border-radius:50%;background:#fff;
+  color:#365247;font-size:20px;box-shadow:0 5px 18px rgba(38,83,59,.04);
+}
+.detail-topbar h2{font-size:23px;margin:1px 0;font-weight:900;letter-spacing:-.025em}
+.eyebrow{font-size:9px;font-weight:900;letter-spacing:.08em;color:var(--green-deep);margin:0;text-transform:uppercase}
+.primary{background:var(--green);color:#fff}
+.secondary{border-color:#cee2d7;color:#315448;background:#fff}
+.primary,.secondary{border-radius:12px}
+.panel,.placeholder-panel{
+  border:1px solid #d7e7df;border-radius:18px;background:#fff;padding:15px;margin-top:10px;
+  box-shadow:0 6px 18px rgba(25,84,60,.04);
+}
+.segmented{background:#eaf4ef}
+.segment.active{color:var(--green-deep)}
+.class-chip.active,.resource-filter.active,.attendance-btn.active,.mini-btn.primary-mini{background:var(--green);border-color:var(--green)}
+.count-pill,.directory-avatar,.resource-icon,.empty-icon{background:var(--green-soft);color:var(--green-deep)}
+.attendance-summary strong,.history-score,.resource-type-badge{color:var(--green-deep)!important}
+.sheet-dialog::backdrop{background:#0005}
+.sheet{background:#f8fcfa}
+.sheet input:focus,.sheet select:focus,.sheet textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(99,196,149,.14)}
+
+@media(max-width:420px){
+  .samos-menu-overlay{padding-left:29px;padding-right:29px}
+  .samos-menu-stage{height:235px}
+  .samos-menu-content{gap:16px!important}
+  .samos-menu-tile{min-height:118px;padding:22px 24px;border-radius:24px}
+}
+@media(max-height:760px){
+  .samos-menu-stage{height:170px}
+  .samos-menu-copy>p:last-child{margin-bottom:18px!important}
+  .samos-menu-tile{min-height:92px;padding:17px 20px}
+  .samos-menu-content{gap:11px!important}
+}

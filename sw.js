@@ -1,4 +1,4 @@
-const BUILD='0.6.0';
+const BUILD='0.7.0';
 const CACHE=`samos-${BUILD}`;
 const CORE=[
   './',
