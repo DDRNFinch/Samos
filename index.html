@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#0d7a55">
+  <meta name="theme-color" content="#7d9d8c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Samos">
@@ -16,48 +16,104 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">CLASSROOM ASSISTANT</p>
-        <h1>Samos</h1>
+      <div class="brand-wrap" role="img" aria-label="Samos">
+        <div class="brand-name">Sam<span class="brand-o" aria-hidden="true"></span>s</div>
+        <div class="brand-sub">Classroom Assistant</div>
       </div>
-      <button class="round-btn" id="settingsBtn" aria-label="Settings">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.1 3.5c0-.5-.05-.98-.14-1.45l2.02-1.57-2-3.46-2.47.99a8.22 8.22 0 0 0-2.5-1.45L14.65 2h-4l-.37 2.56a8.3 8.3 0 0 0-2.5 1.45l-2.46-.99-2 3.46 2.01 1.57A8.1 8.1 0 0 0 5.2 12c0 .5.05.98.14 1.45l-2.02 1.57 2 3.46 2.47-.99a8.22 8.22 0 0 0 2.5 1.45l.36 2.56h4l.37-2.56a8.3 8.3 0 0 0 2.5-1.45l2.46.99 2-3.46-2.01-1.57c.09-.47.14-.96.14-1.45Z"/></svg>
-      </button>
+      <div class="topbar-actions">
+        <button class="class-pill" id="homeClassPill" type="button">All classes</button>
+        <button class="round-btn" id="settingsBtn" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.1 3.5c0-.5-.05-.98-.14-1.45l2.02-1.57-2-3.46-2.47.99a8.22 8.22 0 0 0-2.5-1.45L14.65 2h-4l-.37 2.56a8.3 8.3 0 0 0-2.5 1.45l-2.46-.99-2 3.46 2.01 1.57A8.1 8.1 0 0 0 5.2 12c0 .5.05.98.14 1.45l-2.02 1.57 2 3.46 2.47-.99a8.22 8.22 0 0 0 2.5 1.45l.36 2.56h4l.37-2.56a8.3 8.3 0 0 0 2.5-1.45l2.46.99 2-3.46-2.01-1.57c.09-.47.14-.96.14-1.45Z"/></svg>
+        </button>
+      </div>
     </header>
 
     <main id="mainContent">
       <section class="view active" data-view="home">
-        <div class="hero-card">
-          <div class="assistant-stage" aria-label="Samos animated assistant">
-            <div class="halo halo-one"></div>
-            <div class="halo halo-two"></div>
+        <section class="hero-home">
+          <div class="ring-stack" aria-label="Samos helper">
+            <span class="ring ring-a"></span>
+            <span class="ring ring-b"></span>
+            <span class="ring ring-c"></span>
+            <span class="ring ring-d"></span>
             <div class="samos-face" id="samosFace">
-              <span class="shine"></span>
               <span class="eye left"><i></i></span>
               <span class="eye right"><i></i></span>
-              <span class="mouth"></span>
             </div>
-            <span class="assistant-shadow"></span>
           </div>
-          <h2 id="greeting">Good morning.</h2>
-          <p class="hero-copy" id="assistantMessage">I can keep today's class organised.</p>
-          <button class="assistant-prompt" id="assistantPrompt">What needs doing today?</button>
-        </div>
+          <div class="assistant-line">Samos is here to help</div>
+          <div class="assistant-copy" id="assistantMessage">I’ll help you manage teaching, registers and classroom organisation.</div>
+        </section>
 
-        <section class="today-card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">TODAY</p>
-              <h3>Register overview</h3>
+        <section class="metric-row">
+          <article class="metric-card">
+            <div class="metric-icon green">
+              <svg viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v14l-4-2.5L12 20l-4-2.5L4 20V6a2 2 0 0 1 2-2Zm2 4h8m-8 4h8"/></svg>
             </div>
-            <span class="status-pill" id="todayStatus">No class selected</span>
+            <div>
+              <p>Classes</p>
+              <strong id="classCount">0</strong>
+              <span id="classMetricDetail">Ready to teach</span>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon blue">
+              <svg viewBox="0 0 24 24"><path d="M12 5v7l4 2m4-2a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+            </div>
+            <div>
+              <p>Learners</p>
+              <strong id="learnerCount">0</strong>
+              <span id="learnerMetricDetail">Across all classes</span>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon amber">
+              <svg viewBox="0 0 24 24"><path d="M12 7v5l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            </div>
+            <div>
+              <p>Today</p>
+              <strong id="presentCount">0</strong>
+              <span id="presentMetricDetail">Marked in</span>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon purple">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16v10H4zM8 4v3m8-3v3M7 11h3m4 0h3m-10 4h3m4 0h3"/></svg>
+            </div>
+            <div>
+              <p>Registers</p>
+              <strong id="historyCount">0</strong>
+              <span id="historyMetricDetail">Saved this device</span>
+            </div>
+          </article>
+        </section>
+
+        <button class="portfolio-card" type="button" data-open-view="registers">
+          <div class="portfolio-icon">
+            <svg viewBox="0 0 24 24"><path d="M7 4h8l4 4v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm7 1v4h4M8 13h8M8 17h6"/></svg>
           </div>
-          <div class="stat-grid">
-            <div class="stat"><strong id="classCount">0</strong><span>Classes</span></div>
-            <div class="stat"><strong id="learnerCount">0</strong><span>Learners</span></div>
-            <div class="stat"><strong id="presentCount">0</strong><span>Present today</span></div>
+          <div class="portfolio-text">
+            <strong>Open Registers</strong>
+            <span>Preview classes, learners and today’s attendance.</span>
           </div>
-          <button class="primary full" data-open-view="registers">Open registers</button>
+          <div class="portfolio-arrow">›</div>
+        </button>
+
+        <section class="summary-card">
+          <div class="summary-head">
+            <div>
+              <p class="eyebrow">CLASSROOM OVERVIEW</p>
+              <h3 id="summaryCardTitle">No class selected</h3>
+            </div>
+            <span class="summary-percentage" id="summaryPercent">0%</span>
+          </div>
+          <p class="summary-copy" id="summaryCardCopy">Create a class to start using Samos for classroom registers.</p>
+          <div class="summary-progress"><span id="summaryProgressBar"></span></div>
+          <div class="summary-chips">
+            <span class="summary-chip present">Present <b id="summaryPresentHome">0</b></span>
+            <span class="summary-chip late">Late <b id="summaryLateHome">0</b></span>
+            <span class="summary-chip absent">Absent <b id="summaryAbsentHome">0</b></span>
+          </div>
         </section>
       </section>
 
@@ -120,18 +176,8 @@
           <div class="mini-samos"><span></span><span></span></div>
           <p class="eyebrow">COMING NEXT</p>
           <h2>Lesson Plans</h2>
-          <p>Create, organise and reuse lesson plans with Samos helping you build each session.</p>
-          <div class="placeholder-card"><strong>Planned for the next build</strong><span>Objectives · activities · timings · resources · differentiation · review</span></div>
-        </div>
-      </section>
-
-      <section class="view" data-view="slides">
-        <div class="placeholder-view">
-          <div class="mini-samos"><span></span><span></span></div>
-          <p class="eyebrow">COMING NEXT</p>
-          <h2>Presentations</h2>
-          <p>Add PowerPoints and keep classroom presentation resources attached to the right lesson.</p>
-          <div class="placeholder-card"><strong>Ready to expand</strong><span>Upload · organise · present · reuse</span></div>
+          <p>Create lesson plans, add PowerPoints and organise classroom resources in one place.</p>
+          <div class="placeholder-card"><strong>Planned for the next build</strong><span>Objectives · activities · timings · resources · PowerPoints · review</span></div>
         </div>
       </section>
 
@@ -147,17 +193,17 @@
     </main>
 
     <nav class="arch-nav" aria-label="Main navigation">
-      <button class="arch active" data-nav="registers" aria-label="Registers">
+      <button class="arch active" data-nav="home" aria-label="Home">
+        <svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20H4zM9 20v-6h6v6"/></svg>
+        <span>Home</span>
+      </button>
+      <button class="arch" data-nav="registers" aria-label="Registers">
         <svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v16l-5-3-4 3-4-3-5 3V5a2 2 0 0 1 2-2Zm3 5h8M8 12h8"/></svg>
         <span>Registers</span>
       </button>
       <button class="arch" data-nav="lessons" aria-label="Lesson plans">
         <svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Zm16 0A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5v-16Z"/></svg>
         <span>Lessons</span>
-      </button>
-      <button class="arch" data-nav="slides" aria-label="Presentations">
-        <svg viewBox="0 0 24 24"><path d="M4 4h16v11H4V4Zm5 16 3-5 3 5M8 9h2l2-3 2 5 2-2h2"/></svg>
-        <span>Slides</span>
       </button>
       <button class="arch" data-nav="games" aria-label="Classroom games">
         <svg viewBox="0 0 24 24"><path d="M8 7h8l3 3 1 8-3 2-3-3h-4l-3 3-3-2 1-8 3-3Zm1 4v4m-2-2h4m5-1h.01m2 2h.01"/></svg>
@@ -200,14 +246,13 @@
     <form method="dialog" class="sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-title"><h3>Samos settings</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
-      <label>Your name<input id="teacherNameInput" maxlength="40" placeholder="Teacher / tutor"></label>
-      <label>College / centre<input id="centreInput" maxlength="60" placeholder="Optional"></label>
-      <div class="setting-row"><span><strong>Device-only storage</strong><small>Register data stays in this browser on this device.</small></span><span class="switch on">On</span></div>
-      <button value="default" class="primary full" id="saveSettingsBtn">Save</button>
+      <label>Your name<input id="teacherNameInput" maxlength="40" placeholder="Optional"></label>
+      <label>Centre / room base<input id="centreInput" maxlength="50" placeholder="Optional"></label>
+      <div class="sheet-actions single"><button type="button" class="primary" id="saveSettingsBtn">Save settings</button></div>
     </form>
   </dialog>
 
-  <div class="toast" id="toast" role="status"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
 </body>
 </html>

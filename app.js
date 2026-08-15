@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const STORE_KEY = 'samos.classroom.v1';
+  const STORE_KEY = 'samos.classroom.v2';
   const todayKey = () => new Date().toISOString().slice(0, 10);
   const prettyDate = (date = new Date()) => date.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
@@ -70,20 +70,65 @@
     const teacher = state.settings.teacherName?.trim();
     const hour = new Date().getHours();
     const daypart = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-    $('#greeting').textContent = teacher ? `${daypart}, ${teacher}.` : `${daypart}.`;
-    $('#classCount').textContent = state.classes.length;
-    $('#learnerCount').textContent = state.classes.reduce((sum,c) => sum + (c.learners?.length || 0), 0);
     const cls = activeClass();
+    const totalLearners = state.classes.reduce((sum,c) => sum + (c.learners?.length || 0), 0);
+
+    $('#classCount').textContent = state.classes.length;
+    $('#learnerCount').textContent = totalLearners;
+    $('#historyCount').textContent = state.history.length;
+    $('#classMetricDetail').textContent = state.classes.length === 1 ? '1 class ready' : `${state.classes.length} classes ready`;
+    $('#learnerMetricDetail').textContent = totalLearners ? 'Across all classes' : 'No learners yet';
+    $('#historyMetricDetail').textContent = state.history.length ? 'Saved this device' : 'Nothing saved yet';
+
+    const face = $('#samosFace');
+    if (face?.animate) {
+      face.animate([
+        { transform:'translate(-50%,-50%) translateY(0) rotate(0deg)' },
+        { transform:'translate(-50%,-50%) translateY(-4px) rotate(-2deg)' },
+        { transform:'translate(-50%,-50%) translateY(0) rotate(2deg)' },
+        { transform:'translate(-50%,-50%) translateY(0) rotate(0deg)' }
+      ], { duration: 2400, easing:'ease-in-out' });
+    }
+
     if (cls){
       const att = getAttendance(cls.id);
-      const present = (cls.learners || []).filter(l => ['present','late'].includes(att[l.id]?.status)).length;
-      $('#presentCount').textContent = present;
-      $('#todayStatus').textContent = cls.name;
-      $('#assistantMessage').textContent = `${cls.name} is ready. ${present} of ${cls.learners.length} learners are marked in today.`;
+      const present = (cls.learners || []).filter(l => att[l.id]?.status === 'present').length;
+      const late = (cls.learners || []).filter(l => att[l.id]?.status === 'late').length;
+      const absent = (cls.learners || []).filter(l => att[l.id]?.status === 'absent').length;
+      const total = cls.learners.length;
+      const completed = total ? Math.round(((present + late + absent) / total) * 100) : 0;
+      const inRoom = present + late;
+
+      $('#presentCount').textContent = inRoom;
+      $('#presentMetricDetail').textContent = total ? `${inRoom} of ${total} marked in` : 'No learners yet';
+      $('#homeClassPill').textContent = cls.name;
+      $('#assistantMessage').textContent = teacher
+        ? `${daypart}, ${teacher}. ${cls.name} is ready, and ${inRoom} of ${total} learners are marked in.`
+        : `${cls.name} is ready, and ${inRoom} of ${total} learners are marked in.`;
+
+      $('#summaryCardTitle').textContent = cls.name;
+      $('#summaryCardCopy').textContent = total
+        ? `${cls.day || 'Scheduled class'} · ${cls.start || '09:00'}–${cls.end || '16:00'}${cls.room ? ` · ${cls.room}` : ''}`
+        : 'Add learners to this class to start taking the register.';
+      $('#summaryPercent').textContent = `${completed}%`;
+      $('#summaryProgressBar').style.width = `${completed}%`;
+      $('#summaryPresentHome').textContent = present;
+      $('#summaryLateHome').textContent = late;
+      $('#summaryAbsentHome').textContent = absent;
     } else {
       $('#presentCount').textContent = '0';
-      $('#todayStatus').textContent = state.classes.length ? 'Choose a class' : 'No class selected';
-      $('#assistantMessage').textContent = state.classes.length ? 'Choose a class and I’ll help you take today’s register.' : 'Create a class and I’ll keep the register organised.';
+      $('#presentMetricDetail').textContent = state.classes.length ? 'Choose a class' : 'No class selected';
+      $('#homeClassPill').textContent = state.classes.length ? 'Choose class' : 'All classes';
+      $('#assistantMessage').textContent = state.classes.length
+        ? 'Choose a class and I’ll help you organise today’s register.'
+        : 'Create a class and I’ll keep your teaching day organised.';
+      $('#summaryCardTitle').textContent = 'No class selected';
+      $('#summaryCardCopy').textContent = 'Create a class to start using Samos for classroom registers.';
+      $('#summaryPercent').textContent = '0%';
+      $('#summaryProgressBar').style.width = '0%';
+      $('#summaryPresentHome').textContent = '0';
+      $('#summaryLateHome').textContent = '0';
+      $('#summaryAbsentHome').textContent = '0';
     }
   }
 
@@ -305,12 +350,9 @@
     $('#saveSettingsBtn').addEventListener('click', () => {
       state.settings.teacherName=$('#teacherNameInput').value.trim(); state.settings.centre=$('#centreInput').value.trim(); saveState(); showToast('Settings saved');
     });
-    $('#assistantPrompt').addEventListener('click', () => {
-      const cls=activeClass();
-      if (!cls){ navigate('registers'); showToast(state.classes.length?'Choose a class':'Create your first class'); return; }
-      const att=getAttendance(cls.id); const unmarked=cls.learners.filter(l=>!['present','late','absent'].includes(att[l.id]?.status)).length;
-      $('#samosFace').animate([{transform:'translateY(0) rotate(0)'},{transform:'translateY(-13px) rotate(-4deg)'},{transform:'translateY(0) rotate(3deg)'}],{duration:700,easing:'ease-out'});
-      showToast(unmarked ? `${unmarked} learner${unmarked===1?'':'s'} still to mark` : 'Today’s register is complete');
+    $('#homeClassPill').addEventListener('click', () => {
+      if (!state.classes.length){ showToast('Create a class first'); return; }
+      navigate('registers');
     });
   }
 
