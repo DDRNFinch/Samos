@@ -73,6 +73,11 @@ body.evia-open>main,body.evia-open>dialog{filter:blur(8px) saturate(.8) brightne
 #samosOverlay .evia-copy #samosHint,#samosOverlay .evia-copy>p:not(.evia-greeting){max-width:470px;margin:0 auto 18px;color:#77777b;font-size:13px;line-height:1.45}
 #samosContent{width:100%;max-width:540px;margin:0 auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 
+
+/* Close the assistant in one visual frame so the overlay face can never cross-fade over the centred home face. */
+#samosOverlay.samos-closing{transition:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+#samosOverlay.samos-closing .evia-face{animation:none!important;transform:none!important;transition:none!important}
+
 /* Exact Tilos assistant component dimensions. */
 .ta-card{background:#fff;border:1px solid rgba(99,196,149,.18);border-radius:20px;padding:15px;display:grid;gap:12px;box-shadow:0 8px 24px rgba(24,63,45,.06)}
 .ta-field{display:grid;gap:6px;text-align:left}.ta-field>span{font-size:11px;font-weight:760;color:#4d565b}.ta-field input,.ta-field textarea,.ta-field select{width:100%;min-height:48px;border:1px solid #d8dfe2;border-radius:14px;background:#fff;padding:11px 12px;color:#111;font:16px/1.4 inherit;outline:none}.ta-field textarea{min-height:105px;resize:vertical}.ta-field input:focus,.ta-field textarea:focus,.ta-field select:focus{border-color:var(--yellow);box-shadow:0 0 0 3px rgba(99,196,149,.13)}

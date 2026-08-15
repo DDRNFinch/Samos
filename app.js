@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.8.0';
+  const BUILD = window.SAMOS_BUILD || '0.9.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';
@@ -33,6 +33,7 @@
   let editingRegisterId = null;
   let assistantRoute = 'main';
   let assistantReturn = 'main';
+  let assistantCloseFrame = 0;
   let installPrompt = null;
 
   const app = $('#staffApp');
@@ -182,9 +183,22 @@
   /* ---------------- Assistant: exact current Tilos structure ---------------- */
   function copy(title,sub){prompt.textContent=title;hint.textContent=sub;}
   function openAssistant(route='main'){
+    if(assistantCloseFrame){cancelAnimationFrame(assistantCloseFrame);assistantCloseFrame=0;}
+    overlay.classList.remove('samos-closing');
     assistantRoute=route;assistantReturn='main';overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');document.body.classList.add('evia-open');window.EviaAnimations?.setBusy?.(true);renderAssistant();$('#samosClose')?.focus();
   }
-  function closeAssistant(){overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');document.body.classList.remove('evia-open');window.EviaAnimations?.setBusy?.(false);assistantRoute='main';}
+  function closeAssistant(){
+    if(!overlay.classList.contains('open')){overlay.classList.remove('samos-closing');document.body.classList.remove('evia-open');window.EviaAnimations?.setBusy?.(false);assistantRoute='main';return;}
+    if(assistantCloseFrame){cancelAnimationFrame(assistantCloseFrame);assistantCloseFrame=0;}
+    /* Prevent the overlay face cross-fading over the centred home face. That overlap looked like Samos jumped down the screen. */
+    window.EviaAnimations?.setBusy?.(true);
+    overlay.classList.add('samos-closing');
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden','true');
+    document.body.classList.remove('evia-open');
+    assistantRoute='main';
+    assistantCloseFrame=requestAnimationFrame(()=>{assistantCloseFrame=0;overlay.classList.remove('samos-closing');window.EviaAnimations?.setBusy?.(false);});
+  }
   function assistantBack(){if(assistantRoute==='main')return closeAssistant();if(assistantRoute.startsWith('learners:'))return assistantLearners();if(assistantRoute.startsWith('registers:'))return assistantRegisters();if(assistantRoute.startsWith('resources:'))return assistantResources();assistantRoute='main';renderAssistant();}
   function renderAssistant(){
     if(assistantRoute==='main')return assistantMain();
