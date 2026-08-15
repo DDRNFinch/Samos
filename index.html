@@ -3,36 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#809c8f">
+  <meta name="theme-color" content="#829a8d">
+  <meta name="application-name" content="Samos">
+  <meta name="samos-build" content="0.4.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Samos">
   <title>Samos · Classroom Assistant</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="icon" href="icon-192.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.webmanifest?v=0.4.0">
+  <link rel="apple-touch-icon" href="icon-192.png?v=0.4.0">
+  <link rel="icon" href="icon-192.png?v=0.4.0">
+  <link rel="stylesheet" href="styles.css?v=0.4.0">
 </head>
-<body>
+<body class="home-mode">
   <div class="app-shell">
     <header class="app-header">
-      <button class="brand-block" id="brandHomeBtn" type="button" aria-label="Go to home screen">
-        <div class="brand-name">Sam<span class="brand-o"></span>s</div>
+      <button class="brand-block" id="brandHomeBtn" type="button" aria-label="Samos home">
+        <div class="brand-name">Sam<span class="brand-o">o</span>s</div>
         <div class="brand-sub">CLASSROOM ASSISTANT</div>
       </button>
     </header>
 
     <main id="mainContent">
-      <section class="view active" data-view="home">
+      <section class="view home-view active" data-view="home">
         <div class="home-actions">
           <button class="text-link" id="helpBtn" type="button">Help / Samos</button>
           <button class="text-link" id="profileBtn" type="button">Edit profile</button>
         </div>
 
-        <section class="assistant-zone">
-          <div class="samos-face" id="samosFace" aria-label="Samos assistant">
-            <span class="eye left"><i></i></span>
-            <span class="eye right"><i></i></span>
+        <section class="assistant-zone" aria-label="Samos assistant">
+          <div class="samos-face" id="samosFace">
+            <span class="eye left"></span>
+            <span class="eye right"></span>
           </div>
         </section>
 
@@ -46,16 +48,14 @@
         </button>
       </section>
 
-      <section class="view" data-view="registers">
-        <div class="detail-head">
-          <p class="eyebrow">ATTENDANCE</p>
-          <h2>Registers</h2>
-          <p class="detail-copy">Create classes, add learners and save attendance on this device.</p>
-        </div>
-
-        <div class="detail-toolbar">
-          <button class="secondary compact" id="newClassBtn">+ Class</button>
-          <button class="secondary compact" id="homeFromRegistersBtn">Home</button>
+      <section class="view detail-view" data-view="registers">
+        <div class="detail-topbar">
+          <button class="back-home" id="homeFromRegistersBtn" type="button">←</button>
+          <div>
+            <p class="eyebrow">ATTENDANCE</p>
+            <h2>Registers</h2>
+          </div>
+          <button class="primary compact" id="newClassBtn" type="button">+ Class</button>
         </div>
 
         <div class="class-strip" id="classStrip"></div>
@@ -64,7 +64,7 @@
           <div class="empty-icon">+</div>
           <h3>Create your first class</h3>
           <p>Add a class, add learners, then take the register. Everything is stored on this device.</p>
-          <button class="primary" id="emptyNewClassBtn">Create class</button>
+          <button class="primary" id="emptyNewClassBtn" type="button">Create class</button>
         </section>
 
         <section class="panel register-panel hidden" id="registerPanel">
@@ -75,8 +75,8 @@
               <p class="muted" id="activeClassMeta"></p>
             </div>
             <div class="register-actions">
-              <button class="secondary compact" id="editClassBtn">Edit</button>
-              <button class="primary compact" id="addLearnerBtn">+ Learner</button>
+              <button class="secondary compact" id="editClassBtn" type="button">Edit</button>
+              <button class="primary compact" id="addLearnerBtn" type="button">+ Learner</button>
             </div>
           </div>
 
@@ -84,18 +84,18 @@
             <div><strong id="summaryPresent">0</strong><span>Present</span></div>
             <div><strong id="summaryLate">0</strong><span>Late</span></div>
             <div><strong id="summaryAbsent">0</strong><span>Absent</span></div>
-            <button class="mark-all" id="markAllBtn">Mark all present</button>
+            <button class="mark-all" id="markAllBtn" type="button">Mark all present</button>
           </div>
 
           <div class="learner-list" id="learnerList"></div>
           <div class="save-row">
             <span id="saveState">Changes save automatically</span>
-            <button class="primary" id="finishRegisterBtn">Finish register</button>
+            <button class="primary" id="finishRegisterBtn" type="button">Finish register</button>
           </div>
         </section>
 
         <section class="history-section">
-          <div class="section-heading simple">
+          <div class="section-heading">
             <h3>Recent registers</h3>
             <button class="text-link subtle" id="clearHistoryBtn" type="button">Clear</button>
           </div>
@@ -103,42 +103,39 @@
         </section>
       </section>
 
-      <section class="view" data-view="lessons">
-        <div class="detail-head">
-          <p class="eyebrow">PLANNING</p>
-          <h2>Lesson Plans</h2>
-          <p class="detail-copy">Create, organise and reuse lesson plans with Samos.</p>
+      <section class="view detail-view" data-view="lessons">
+        <div class="detail-topbar">
+          <button class="back-home" id="homeFromLessonsBtn" type="button">←</button>
+          <div><p class="eyebrow">PLANNING</p><h2>Lessons</h2></div>
+          <span class="detail-spacer"></span>
         </div>
         <section class="placeholder-panel">
-          <h3>Ready for the next build</h3>
-          <p>Objectives, timings, resources, PowerPoints and activities will live here.</p>
-          <button class="secondary" id="homeFromLessonsBtn" type="button">Back home</button>
+          <h3>Lesson plans</h3>
+          <p>Objectives, timings, resources, PowerPoints and classroom activities will be added here next.</p>
         </section>
       </section>
 
-      <section class="view" data-view="slides">
-        <div class="detail-head">
-          <p class="eyebrow">PRESENTATION</p>
-          <h2>Slides</h2>
-          <p class="detail-copy">Keep PowerPoints and classroom presentation resources in one place.</p>
+      <section class="view detail-view" data-view="slides">
+        <div class="detail-topbar">
+          <button class="back-home" id="homeFromSlidesBtn" type="button">←</button>
+          <div><p class="eyebrow">PRESENTATION</p><h2>Slides</h2></div>
+          <span class="detail-spacer"></span>
         </div>
         <section class="placeholder-panel">
-          <h3>Presentation tools coming next</h3>
-          <p>Upload, organise and launch slides directly from Samos.</p>
-          <button class="secondary" id="homeFromSlidesBtn" type="button">Back home</button>
+          <h3>PowerPoints and resources</h3>
+          <p>Upload, organise and launch classroom presentations directly from Samos.</p>
         </section>
       </section>
 
-      <section class="view" data-view="games">
-        <div class="detail-head">
-          <p class="eyebrow">ACTIVITIES</p>
-          <h2>Games</h2>
-          <p class="detail-copy">Quick classroom games and recap activities will live here.</p>
+      <section class="view detail-view" data-view="games">
+        <div class="detail-topbar">
+          <button class="back-home" id="homeFromGamesBtn" type="button">←</button>
+          <div><p class="eyebrow">ACTIVITIES</p><h2>Games</h2></div>
+          <span class="detail-spacer"></span>
         </div>
         <section class="placeholder-panel">
-          <h3>Classroom games coming next</h3>
-          <p>Quizzes, random pickers and team games will be added here.</p>
-          <button class="secondary" id="homeFromGamesBtn" type="button">Back home</button>
+          <h3>Classroom games</h3>
+          <p>Quizzes, random pickers, team games and quick recap activities will be added here.</p>
         </section>
       </section>
     </main>
@@ -220,14 +217,16 @@
   <dialog id="settingsDialog" class="sheet-dialog">
     <form method="dialog" class="sheet">
       <div class="sheet-handle"></div>
-      <div class="sheet-title"><h3>Samos settings</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
+      <div class="sheet-title"><h3>Samos profile</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
       <label>Your name<input id="teacherNameInput" maxlength="40" placeholder="Optional"></label>
       <label>Centre / room base<input id="centreInput" maxlength="50" placeholder="Optional"></label>
-      <div class="sheet-actions single"><button type="button" class="primary" id="saveSettingsBtn">Save settings</button></div>
+      <div class="sheet-actions single"><button type="button" class="primary" id="saveSettingsBtn">Save</button></div>
     </form>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script>window.SAMOS_BUILD='0.4.0';</script>
+  <script src="app.js?v=0.4.0"></script>
+  <script src="naxos-controller.js?v=0.4.0"></script>
 </body>
 </html>

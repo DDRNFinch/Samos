@@ -1,7 +1,10 @@
 (() => {
   'use strict';
 
-  const STORE_KEY = 'samos.classroom.v3';
+  const BUILD = window.SAMOS_BUILD || '0.4.0';
+  const STORE_KEY = 'samos.classroom.data';
+  const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
+  const SHELL_BUILD_KEY = 'samos.shell.build';
   const todayKey = () => new Date().toISOString().slice(0, 10);
   const prettyDate = (date = new Date()) => date.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
@@ -23,26 +26,49 @@
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
 
-  function loadState(){
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY));
-      if (!saved || typeof saved !== 'object') return structuredCloneSafe(defaultState);
-      return {
-        ...structuredCloneSafe(defaultState),
-        ...saved,
-        settings: { ...defaultState.settings, ...(saved.settings || {}) },
-        classes: Array.isArray(saved.classes) ? saved.classes : [],
-        attendance: saved.attendance || {},
-        history: Array.isArray(saved.history) ? saved.history : [],
-        activeSection: saved.activeSection || 'registers',
-        currentView: saved.currentView || 'home'
-      };
-    } catch { return structuredCloneSafe(defaultState); }
+  function structuredCloneSafe(value){ return JSON.parse(JSON.stringify(value)); }
+
+  function readStoredState(){
+    const keys = [STORE_KEY, ...LEGACY_KEYS];
+    for (const key of keys){
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (_) {}
+    }
+    return null;
   }
 
-  function structuredCloneSafe(value){ return JSON.parse(JSON.stringify(value)); }
-  function saveState(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); renderAll(); }
-  function persistQuick(message){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); renderAll(); showToast(message); }
+  function loadState(){
+    const saved = readStoredState();
+    if (!saved) return structuredCloneSafe(defaultState);
+    const merged = {
+      ...structuredCloneSafe(defaultState),
+      ...saved,
+      settings: { ...defaultState.settings, ...(saved.settings || {}) },
+      classes: Array.isArray(saved.classes) ? saved.classes : [],
+      attendance: saved.attendance || {},
+      history: Array.isArray(saved.history) ? saved.history : [],
+      activeSection: saved.activeSection || 'registers',
+      currentView: saved.currentView || 'home'
+    };
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(merged)); } catch (_) {}
+    return merged;
+  }
+
+  function saveState(){
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    renderAll();
+  }
+
+  function persistQuick(message){
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    renderAll();
+    showToast(message);
+  }
+
   function activeClass(){ return state.classes.find(c => c.id === state.activeClassId) || null; }
   function attendanceKey(classId, date=todayKey()){ return `${classId}:${date}`; }
   function getAttendance(classId){
@@ -53,23 +79,24 @@
 
   function showToast(message){
     const toast = $('#toast');
+    if (!toast) return;
     toast.textContent = message;
     toast.classList.add('show');
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
+    showToast.timer = setTimeout(() => toast.classList.remove('show'), 2100);
   }
 
   function goHome(){
     state.currentView = 'home';
     saveState();
-    window.scrollTo({top:0, behavior:'smooth'});
+    window.scrollTo({top:0, behavior:'auto'});
   }
 
   function openSection(section){
     state.activeSection = section;
     state.currentView = section;
     saveState();
-    window.scrollTo({top:0, behavior:'smooth'});
+    window.scrollTo({top:0, behavior:'auto'});
   }
 
   function renderAll(){
@@ -82,86 +109,49 @@
 
   function renderViews(){
     const current = state.currentView || 'home';
+    document.body.classList.toggle('home-mode', current === 'home');
     $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === current));
     $$('.metric-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.section === state.activeSection));
   }
 
-  function renderHome(){
-    const teacher = state.settings.teacherName?.trim();
-    const active = state.activeSection || 'registers';
-    const cls = activeClass();
-    const stats = registerStats();
-    const face = $('#samosFace');
-
-    const focusMap = {
-      registers: {
-        kicker: "TODAY'S REGISTER",
-        title: cls ? cls.name : 'Create your first class',
-        text: cls
-          ? `${stats.markedIn} of ${stats.total} learners marked in today.`
-          : 'Add a class, add learners and start taking registers.'
-      },
-      lessons: {
-        kicker: 'LESSON PLANS',
-        title: 'Build your lesson plans',
-        text: 'Create, organise and reuse lesson plans with Samos.'
-      },
-      slides: {
-        kicker: 'PRESENTATIONS',
-        title: 'Keep your slides together',
-        text: 'Store PowerPoints and classroom presentation resources here.'
-      },
-      games: {
-        kicker: 'CLASSROOM GAMES',
-        title: 'Plan recap activities',
-        text: 'Use Samos for quizzes, team games and quick classroom checks.'
-      }
-    };
-
-    const current = focusMap[active] || focusMap.registers;
-    $('#focusKicker').textContent = current.kicker;
-    $('#focusTitle').textContent = current.title;
-    $('#focusText').textContent = current.text;
-
-    if (teacher) {
-      $('#helpBtn').textContent = `Help / ${teacher.split(' ')[0]}`;
-    } else {
-      $('#helpBtn').textContent = 'Help / Samos';
-    }
-
-    if (face?.animate) {
-      face.animate([
-        { transform:'translateY(0) scale(1)' },
-        { transform:'translateY(-7px) scale(1.01)' },
-        { transform:'translateY(0) scale(1)' }
-      ], { duration: 2200, easing:'ease-in-out' });
-    }
-  }
-
   function registerStats(){
     const cls = activeClass();
-    if (!cls) return { total:0, present:0, late:0, absent:0, marked:0, markedIn:0, percent:0 };
+    if (!cls) return { total:0,present:0,late:0,absent:0,marked:0,markedIn:0,percent:0 };
     const att = getAttendance(cls.id);
     const total = cls.learners?.length || 0;
     const present = (cls.learners || []).filter(l => att[l.id]?.status === 'present').length;
     const late = (cls.learners || []).filter(l => att[l.id]?.status === 'late').length;
     const absent = (cls.learners || []).filter(l => att[l.id]?.status === 'absent').length;
     const marked = present + late + absent;
-    const markedIn = present + late;
-    const percent = total ? Math.round((marked / total) * 100) : 0;
-    return { total, present, late, absent, marked, markedIn, percent };
+    return { total,present,late,absent,marked,markedIn:present+late,percent:total?Math.round((marked/total)*100):0 };
+  }
+
+  function renderHome(){
+    const active = state.activeSection || 'registers';
+    const cls = activeClass();
+    const stats = registerStats();
+    const focusMap = {
+      registers:{kicker:"TODAY'S REGISTER",title:cls?cls.name:'Create your first class',text:cls?`${stats.markedIn} of ${stats.total} learners marked in today.`:'Add a class, add learners and start taking registers.'},
+      lessons:{kicker:'LESSON PLANS',title:'Build your lesson plans',text:'Create, organise and reuse classroom lesson plans.'},
+      slides:{kicker:'PRESENTATIONS',title:'Keep your slides together',text:'Store PowerPoints and classroom presentation resources.'},
+      games:{kicker:'CLASSROOM GAMES',title:'Plan recap activities',text:'Quizzes, team games and quick classroom checks.'}
+    };
+    const focus = focusMap[active] || focusMap.registers;
+    $('#focusKicker').textContent = focus.kicker;
+    $('#focusTitle').textContent = focus.title;
+    $('#focusText').textContent = focus.text;
   }
 
   function setMeter(section, percent){
     const path = $(`#meter-${section}`);
     const value = $(`#value-${section}`);
-    if (path) path.style.strokeDashoffset = String(METER_LEN - (Math.max(0, Math.min(100, percent)) / 100) * METER_LEN);
-    if (value) value.textContent = `${Math.round(percent)}%`;
+    const p = Math.max(0,Math.min(100,Number(percent)||0));
+    if (path) path.style.strokeDashoffset = String(METER_LEN - (p/100)*METER_LEN);
+    if (value) value.textContent = `${Math.round(p)}%`;
   }
 
   function renderMeters(){
-    const reg = registerStats().percent;
-    setMeter('registers', reg);
+    setMeter('registers', registerStats().percent);
     setMeter('lessons', 0);
     setMeter('slides', 0);
     setMeter('games', 0);
@@ -169,9 +159,11 @@
 
   function renderRegisters(){
     const strip = $('#classStrip');
+    if (!strip) return;
     strip.innerHTML = '';
     state.classes.forEach(cls => {
       const b = document.createElement('button');
+      b.type = 'button';
       b.className = `class-chip${cls.id === state.activeClassId ? ' active' : ''}`;
       b.textContent = cls.name;
       b.addEventListener('click', () => { state.activeClassId = cls.id; saveState(); });
@@ -192,14 +184,11 @@
     const att = getAttendance(cls.id);
 
     if (!(cls.learners || []).length){
-      const empty = document.createElement('div');
-      empty.className = 'history-empty';
-      empty.textContent = 'No learners yet. Add the first learner to this class.';
-      list.appendChild(empty);
+      list.innerHTML = '<div class="history-empty">No learners yet. Add the first learner to this class.</div>';
     }
 
     (cls.learners || []).forEach(learner => {
-      const record = att[learner.id] || {status:'unmarked', lateMinutes:0};
+      const record = att[learner.id] || {status:'unmarked',lateMinutes:0};
       const row = document.createElement('div');
       row.className = 'learner-row';
       row.innerHTML = `
@@ -228,7 +217,7 @@
       $('.late-minutes', row).addEventListener('change', e => {
         att[learner.id] = att[learner.id] || {status:'late'};
         att[learner.id].status = 'late';
-        att[learner.id].lateMinutes = Math.max(0, Math.min(240, Number(e.target.value) || 0));
+        att[learner.id].lateMinutes = Math.max(0,Math.min(240,Number(e.target.value)||0));
         persistQuick('Lateness saved');
       });
 
@@ -247,22 +236,20 @@
 
   function updateAttendanceSummary(cls, att){
     const statuses = (cls.learners || []).map(l => att[l.id]?.status || 'unmarked');
-    $('#summaryPresent').textContent = statuses.filter(s => s === 'present').length;
-    $('#summaryLate').textContent = statuses.filter(s => s === 'late').length;
-    $('#summaryAbsent').textContent = statuses.filter(s => s === 'absent').length;
+    $('#summaryPresent').textContent = statuses.filter(s=>s==='present').length;
+    $('#summaryLate').textContent = statuses.filter(s=>s==='late').length;
+    $('#summaryAbsent').textContent = statuses.filter(s=>s==='absent').length;
   }
 
   function renderHistory(){
     const wrap = $('#historyList');
+    if (!wrap) return;
     wrap.innerHTML = '';
-    if (!state.history.length){
-      wrap.innerHTML = '<div class="history-empty">Finished registers will appear here.</div>';
-      return;
-    }
+    if (!state.history.length){ wrap.innerHTML='<div class="history-empty">Finished registers will appear here.</div>'; return; }
     state.history.slice(0,8).forEach(item => {
       const div = document.createElement('div');
       div.className = 'history-item';
-      div.innerHTML = `<div><strong>${escapeHtml(item.className)}</strong><span>${escapeHtml(item.dateLabel)} · ${item.total} learners</span></div><div class="history-score">${item.present + item.late}/${item.total}</div>`;
+      div.innerHTML = `<div><strong>${escapeHtml(item.className)}</strong><span>${escapeHtml(item.dateLabel)} · ${item.total} learners</span></div><div class="history-score">${item.present+item.late}/${item.total}</div>`;
       wrap.appendChild(div);
     });
   }
@@ -278,7 +265,7 @@
     $('#classEndInput').value = cls?.end || '16:00';
     $('#deleteClassBtn').classList.toggle('hidden', !edit);
     $('#classDialog').showModal();
-    setTimeout(() => $('#classNameInput').focus(), 50);
+    setTimeout(()=>$('#classNameInput').focus(),50);
   }
 
   function weekdayName(){ return new Date().toLocaleDateString('en-GB',{weekday:'long'}); }
@@ -286,118 +273,98 @@
   function saveClassFromForm(){
     const name = $('#classNameInput').value.trim();
     if (!name) return false;
-    const values = {
-      name,
-      day: $('#classDayInput').value,
-      room: $('#classRoomInput').value.trim(),
-      start: $('#classStartInput').value || '09:00',
-      end: $('#classEndInput').value || '16:00'
-    };
-    if (editingClassId){
-      const cls = state.classes.find(c => c.id === editingClassId);
-      Object.assign(cls, values);
-    } else {
-      const cls = { id:uid(), ...values, learners:[] };
-      state.classes.push(cls);
-      state.activeClassId = cls.id;
-    }
+    const values={name,day:$('#classDayInput').value,room:$('#classRoomInput').value.trim(),start:$('#classStartInput').value||'09:00',end:$('#classEndInput').value||'16:00'};
+    if (editingClassId){ Object.assign(state.classes.find(c=>c.id===editingClassId),values); }
+    else { const cls={id:uid(),...values,learners:[]}; state.classes.push(cls); state.activeClassId=cls.id; }
     saveState();
-    showToast(editingClassId ? 'Class updated' : 'Class created');
-    editingClassId = null;
+    showToast(editingClassId?'Class updated':'Class created');
+    editingClassId=null;
     return true;
   }
 
   function addLearnerFromForm(){
-    const cls = activeClass();
-    const name = $('#learnerNameInput').value.trim();
-    if (!cls || !name) return false;
+    const cls=activeClass(); const name=$('#learnerNameInput').value.trim();
+    if(!cls||!name)return false;
     cls.learners ||= [];
-    cls.learners.push({ id:uid(), name, externalId:$('#learnerIdInput').value.trim() });
-    $('#learnerNameInput').value = '';
-    $('#learnerIdInput').value = '';
-    saveState();
-    showToast('Learner added');
-    return true;
+    cls.learners.push({id:uid(),name,externalId:$('#learnerIdInput').value.trim()});
+    $('#learnerNameInput').value=''; $('#learnerIdInput').value='';
+    saveState(); showToast('Learner added'); return true;
   }
 
   function finishRegister(){
-    const cls = activeClass();
-    if (!cls) return;
-    const att = getAttendance(cls.id);
-    const unmarked = (cls.learners || []).filter(l => !['present','late','absent'].includes(att[l.id]?.status));
-    if (unmarked.length && !confirm(`${unmarked.length} learner${unmarked.length===1?' is':'s are'} still unmarked. Finish anyway?`)) return;
-    const statuses = (cls.learners || []).map(l => att[l.id]?.status || 'unmarked');
-    state.history.unshift({
-      id:uid(), classId:cls.id, className:cls.name, date:todayKey(), dateLabel:prettyDate(),
-      total:cls.learners.length,
-      present:statuses.filter(s=>s==='present').length,
-      late:statuses.filter(s=>s==='late').length,
-      absent:statuses.filter(s=>s==='absent').length,
-      data:structuredCloneSafe(att)
-    });
-    state.history = state.history.slice(0,100);
-    saveState();
-    showToast('Register finished and saved');
+    const cls=activeClass(); if(!cls)return;
+    const att=getAttendance(cls.id);
+    const unmarked=(cls.learners||[]).filter(l=>!['present','late','absent'].includes(att[l.id]?.status));
+    if(unmarked.length&&!confirm(`${unmarked.length} learner${unmarked.length===1?' is':'s are'} still unmarked. Finish anyway?`))return;
+    const statuses=(cls.learners||[]).map(l=>att[l.id]?.status||'unmarked');
+    state.history.unshift({id:uid(),classId:cls.id,className:cls.name,date:todayKey(),dateLabel:prettyDate(),total:cls.learners.length,present:statuses.filter(s=>s==='present').length,late:statuses.filter(s=>s==='late').length,absent:statuses.filter(s=>s==='absent').length,data:structuredCloneSafe(att)});
+    state.history=state.history.slice(0,100);
+    saveState(); showToast('Register finished and saved');
   }
 
-  function escapeHtml(value=''){
-    return String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
-  }
+  function escapeHtml(value=''){ return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
 
   function bindEvents(){
-    $$('.metric-tab').forEach(btn => btn.addEventListener('click', () => openSection(btn.dataset.section)));
-    $('#brandHomeBtn').addEventListener('click', goHome);
-    $('#focusCard').addEventListener('click', () => openSection(state.activeSection || 'registers'));
-    $('#helpBtn').addEventListener('click', () => showToast('Samos will guide classroom teaching and registers.'));
-    $('#profileBtn').addEventListener('click', () => {
-      $('#teacherNameInput').value = state.settings.teacherName || '';
-      $('#centreInput').value = state.settings.centre || '';
-      $('#settingsDialog').showModal();
-    });
+    $$('.metric-tab').forEach(btn=>btn.addEventListener('click',()=>openSection(btn.dataset.section)));
+    $('#brandHomeBtn').addEventListener('click',()=>{ if(state.currentView!=='home') goHome(); });
+    $('#focusCard').addEventListener('click',()=>openSection(state.activeSection||'registers'));
+    $('#helpBtn').addEventListener('click',()=>showToast('Samos is your classroom teaching assistant.'));
+    $('#profileBtn').addEventListener('click',()=>{ $('#teacherNameInput').value=state.settings.teacherName||''; $('#centreInput').value=state.settings.centre||''; $('#settingsDialog').showModal(); });
 
-    $('#newClassBtn').addEventListener('click', () => openClassDialog(false));
-    $('#emptyNewClassBtn').addEventListener('click', () => openClassDialog(false));
-    $('#editClassBtn').addEventListener('click', () => openClassDialog(true));
-    $('#addLearnerBtn').addEventListener('click', () => {
-      $('#learnerNameInput').value=''; $('#learnerIdInput').value=''; $('#learnerDialog').showModal(); setTimeout(()=>$('#learnerNameInput').focus(),50);
+    ['Registers','Lessons','Slides','Games'].forEach(name=>{ const btn=$(`#homeFrom${name}Btn`); if(btn)btn.addEventListener('click',goHome); });
+    $('#newClassBtn').addEventListener('click',()=>openClassDialog(false));
+    $('#emptyNewClassBtn').addEventListener('click',()=>openClassDialog(false));
+    $('#editClassBtn').addEventListener('click',()=>openClassDialog(true));
+    $('#addLearnerBtn').addEventListener('click',()=>{ $('#learnerNameInput').value='';$('#learnerIdInput').value='';$('#learnerDialog').showModal();setTimeout(()=>$('#learnerNameInput').focus(),50); });
+    $('#classForm').addEventListener('submit',e=>{if(!saveClassFromForm())e.preventDefault();});
+    $('#learnerForm').addEventListener('submit',e=>{if(!addLearnerFromForm())e.preventDefault();});
+    $('#deleteClassBtn').addEventListener('click',()=>{
+      const cls=activeClass(); if(!cls||!confirm(`Delete ${cls.name}? This removes the class and its current register.`))return;
+      state.classes=state.classes.filter(c=>c.id!==cls.id); Object.keys(state.attendance).filter(k=>k.startsWith(`${cls.id}:`)).forEach(k=>delete state.attendance[k]); state.activeClassId=state.classes[0]?.id||null; $('#classDialog').close(); saveState(); showToast('Class deleted');
     });
-    $('#classForm').addEventListener('submit', e => { if (!saveClassFromForm()) e.preventDefault(); });
-    $('#learnerForm').addEventListener('submit', e => { if (!addLearnerFromForm()) e.preventDefault(); });
-    $('#deleteClassBtn').addEventListener('click', () => {
-      const cls = activeClass();
-      if (!cls || !confirm(`Delete ${cls.name}? This removes the class and its current register.`)) return;
-      state.classes = state.classes.filter(c => c.id !== cls.id);
-      Object.keys(state.attendance).filter(k => k.startsWith(`${cls.id}:`)).forEach(k => delete state.attendance[k]);
-      state.activeClassId = state.classes[0]?.id || null;
-      $('#classDialog').close(); saveState(); showToast('Class deleted');
-    });
-    $('#markAllBtn').addEventListener('click', () => {
-      const cls=activeClass(); if(!cls) return; const att=getAttendance(cls.id);
-      cls.learners.forEach(l => att[l.id]={status:'present',lateMinutes:0});
-      persistQuick('Everyone marked present');
-    });
-    $('#finishRegisterBtn').addEventListener('click', finishRegister);
-    $('#clearHistoryBtn').addEventListener('click', () => {
-      if (!state.history.length || !confirm('Clear the recent register history from this device?')) return;
-      state.history=[]; saveState(); showToast('Register history cleared');
-    });
-    $('#saveSettingsBtn').addEventListener('click', () => {
-      state.settings.teacherName=$('#teacherNameInput').value.trim();
-      state.settings.centre=$('#centreInput').value.trim();
-      saveState();
-      showToast('Settings saved');
-    });
-    ['Registers','Lessons','Slides','Games'].forEach(name => {
-      const btn = $(`#homeFrom${name}Btn`);
-      if (btn) btn.addEventListener('click', goHome);
-    });
+    $('#markAllBtn').addEventListener('click',()=>{const cls=activeClass();if(!cls)return;const att=getAttendance(cls.id);cls.learners.forEach(l=>att[l.id]={status:'present',lateMinutes:0});persistQuick('Everyone marked present');});
+    $('#finishRegisterBtn').addEventListener('click',finishRegister);
+    $('#clearHistoryBtn').addEventListener('click',()=>{if(!state.history.length||!confirm('Clear the recent register history from this device?'))return;state.history=[];saveState();showToast('Register history cleared');});
+    $('#saveSettingsBtn').addEventListener('click',()=>{state.settings.teacherName=$('#teacherNameInput').value.trim();state.settings.centre=$('#centreInput').value.trim();saveState();$('#settingsDialog').close();showToast('Profile saved');});
   }
 
-  function registerServiceWorker(){
-    if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  async function clearOldShellCaches(){
+    try {
+      const previous=localStorage.getItem(SHELL_BUILD_KEY);
+      if(previous===BUILD)return;
+      if('caches' in window){
+        const keys=await caches.keys();
+        await Promise.all(keys.filter(k=>/^samos-/i.test(k)&&k!==`samos-${BUILD}`).map(k=>caches.delete(k)));
+      }
+      localStorage.setItem(SHELL_BUILD_KEY,BUILD);
+    } catch (_) {}
+  }
+
+  async function registerServiceWorker(){
+    if(!('serviceWorker' in navigator)||location.protocol==='file:')return;
+    await clearOldShellCaches();
+    let reloading=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(reloading)return;
+      const key=`samos.controller.reload.${BUILD}`;
+      if(sessionStorage.getItem(key))return;
+      reloading=true;sessionStorage.setItem(key,'1');location.reload();
+    });
+    navigator.serviceWorker.addEventListener('message',event=>{
+      if(event.data?.type==='SAMOS_BUILD_ACTIVATED'&&event.data.build===BUILD){
+        const key=`samos.message.reload.${BUILD}`;
+        if(!sessionStorage.getItem(key)){sessionStorage.setItem(key,'1');location.reload();}
+      }
+    });
+    try {
+      const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+      await reg.update();
+    } catch (_) {}
   }
 
   bindEvents();
   renderAll();
   registerServiceWorker();
+
+  window.SamosApp={build:BUILD,getState:()=>structuredCloneSafe(state),goHome,openSection,clearOldShellCaches};
 })();
