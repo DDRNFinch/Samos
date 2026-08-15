@@ -58,7 +58,9 @@ body.samos-home-centred .assessor-value-home>.vh-arches{margin:0!important;paddi
 @media(max-width:430px){.vh-arches{gap:1px}.vh-arch svg{width:61px}}
 
 /* Exact Tilos assistant shell, green palette. */
-body.evia-open>main,body.evia-open>dialog{filter:blur(8px) saturate(.8) brightness(.92)!important}
+body.evia-open>main{filter:blur(8px) saturate(.8) brightness(.92)!important}
+/* Dialogs opened from Samos sit in the browser top layer and must stay sharp. */
+body.evia-open>dialog,.samos-dialog[open]{filter:none!important;opacity:1!important;transform:none!important}
 #samosOverlay{padding:calc(10px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));background:rgba(242,250,246,.97)!important;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);z-index:200}
 #samosOverlay .evia-wizard{width:min(590px,100%);min-height:100%;padding:4px 2px 28px}
 #samosOverlay .evia-toolbar{min-height:46px;align-items:center}

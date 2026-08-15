@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.9.0';
+  const BUILD = window.SAMOS_BUILD || '0.10.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';

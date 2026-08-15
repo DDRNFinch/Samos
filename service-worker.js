@@ -1,4 +1,4 @@
-const BUILD='0.9.0';
+const BUILD='0.10.0';
 const CACHE=`samos-${BUILD}`;
 const ASSETS=['./','./index.html','./style.css','./staff-style.css','./samos-theme.css','./evia-animations.js','./app.js','./naxos-controller.js','./manifest.json','./icon-192.png','./icon-512.png','./icon-maskable-192.png','./icon-maskable-512.png','./apple-touch-icon.png','./favicon-32.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
