@@ -349,3 +349,10 @@ input,textarea,select{max-width:100%}
 /* v0.15 learner management clarity */
 .danger-zone{margin:20px 0 6px!important;text-align:left!important}
 .danger-zone button{min-height:44px!important;width:100%!important;border:1px solid #e5caca!important;border-radius:14px!important;background:#fffafa!important;color:#a33f3f!important;padding:10px 14px!important;font:inherit!important;font-size:12px!important;font-weight:800!important}
+
+/* v0.16 recurring class/register scheduling -------------------------------- */
+.recurrence-head{display:grid;grid-template-columns:1fr 1fr;gap:9px;align-items:end}.repeat-interval{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;align-items:center}.repeat-interval input{margin:0!important}.repeat-interval b{font-size:10px;color:#65736c;font-weight:800}.recurrence-label{margin:12px 0 7px;font-size:10px;font-weight:850;color:#506159}.recurrence-divider{height:1px;background:#e4ece7;margin:14px 0 11px}.compact-head{margin-bottom:7px}
+.weekday-chip-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.weekday-chip,.month-day-chip{position:relative;display:block!important;margin:0!important;font-weight:800!important}.weekday-chip input,.month-day-chip input{position:absolute;opacity:0;pointer-events:none}.weekday-chip span,.month-day-chip span{display:grid;place-items:center;min-height:39px;border:1px solid #dbe7e0;border-radius:11px;background:#fff;color:#59675f;font-size:10px}.weekday-chip input:checked+span,.month-day-chip input:checked+span{border-color:#63c495;background:#edf9f3;color:#367454;box-shadow:0 0 0 1px rgba(99,196,149,.08)}
+.month-day-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.month-day-chip span{min-height:36px}.monthly-time-row{margin-top:10px}.ta-card [hidden]{display:none!important}
+@media(max-width:430px){.recurrence-head{grid-template-columns:1fr}.weekday-chip-grid,.month-day-grid{gap:4px}.weekday-chip span,.month-day-chip span{min-height:36px;font-size:9px}.repeat-interval{grid-template-columns:72px 1fr}}
+@media(min-width:900px){.weekday-chip-grid{max-width:620px}.month-day-grid{max-width:620px}.recurrence-head{max-width:620px}}

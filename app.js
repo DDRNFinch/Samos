@@ -1,13 +1,14 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.15.0';
+  const BUILD = window.SAMOS_BUILD || '0.16.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';
   const RESOURCE_DB = 'samos.resource.files';
   const RESOURCE_STORE = 'files';
   const FIFTEEN_MINUTES = 15 * 60 * 1000;
+  const WEEKDAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   const $ = (s,r=document) => r.querySelector(s);
   const $$ = (s,r=document) => [...r.querySelectorAll(s)];
   const clone = v => JSON.parse(JSON.stringify(v));
@@ -87,13 +88,46 @@
     return (Array.isArray(list)?list:[]).map((b,i)=>({id:b.id||uid(),label:b.label||`Break ${i+1}`,start:String(b.start||''),end:String(b.end||'')})).filter(b=>b.start&&b.end);
   }
 
+  function boundedInt(value,min,max,fallback=1){
+    const n=Math.round(Number(value));
+    return Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback;
+  }
+
   function normaliseTeachingSchedule(list){
-    const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-    return (Array.isArray(list)?list:[]).map(x=>({
-      day:days.includes(x?.day)?x.day:'Monday',
-      start:String(x?.start||'09:00'),
-      end:String(x?.end||'16:00')
-    })).filter((x,i,a)=>a.findIndex(y=>y.day===x.day)===i);
+    const rows=(Array.isArray(list)?list:[]).map(x=>{
+      const dom=boundedInt(x?.dayOfMonth,1,31,0);
+      if(dom)return {dayOfMonth:dom,start:String(x?.start||'09:00'),end:String(x?.end||'16:00')};
+      return {day:WEEKDAYS.includes(x?.day)?x.day:'Monday',start:String(x?.start||'09:00'),end:String(x?.end||'16:00')};
+    });
+    return rows.filter((x,i,a)=>{
+      const key=x.dayOfMonth?`m:${x.dayOfMonth}`:`w:${x.day}`;
+      return a.findIndex(y=>(y.dayOfMonth?`m:${y.dayOfMonth}`:`w:${y.day}`)===key)===i;
+    });
+  }
+
+  function normaliseClassRecurrence(value){
+    const r=value&&typeof value==='object'?value:{};
+    return {type:r.type==='monthly'?'monthly':'weekly',interval:boundedInt(r.interval,1,12,1)};
+  }
+
+  function normaliseRegisterRecurrence(reg){
+    const r=reg?.recurrence&&typeof reg.recurrence==='object'?reg.recurrence:{};
+    const type=['once','monthly','weekly'].includes(r.type)?r.type:'weekly';
+    const weekdays=[...new Set((Array.isArray(r.weekdays)?r.weekdays:[reg?.day]).filter(x=>WEEKDAYS.includes(x)))];
+    const monthDays=[...new Set((Array.isArray(r.monthDays)?r.monthDays:[]).map(x=>boundedInt(x,1,31,0)).filter(Boolean))].sort((a,b)=>a-b);
+    const startDate=String(r.startDate||reg?.classStartDate||'');
+    const endDate=String(r.endDate||reg?.classEndDate||'');
+    const onceDate=String(r.onceDate||startDate||'');
+    return {
+      type,
+      interval:boundedInt(r.interval,1,12,1),
+      weekdays:weekdays.length?weekdays:[WEEKDAYS.includes(reg?.day)?reg.day:'Monday'],
+      monthDays,
+      startDate,
+      endDate,
+      onceDate,
+      anchorDate:String(r.anchorDate||startDate||onceDate||'')
+    };
   }
 
   function normaliseTeachingClasses(list){
@@ -104,6 +138,7 @@
       courseId:String(c?.courseId||''),
       startDate:String(c?.startDate||''),
       endDate:String(c?.endDate||''),
+      recurrence:normaliseClassRecurrence(c?.recurrence),
       schedule:normaliseTeachingSchedule(c?.schedule),
       breaks:normaliseBreaks(c?.breaks),
       learnerIds:Array.isArray(c?.learnerIds)?[...new Set(c.learnerIds.map(String))]:[],
@@ -114,7 +149,7 @@
   function loadState(){
     const saved=readStoredState();
     if(!saved)return clone(defaultState);
-    const classes=Array.isArray(saved.classes)?saved.classes.map(c=>({...c,breaks:normaliseBreaks(c.breaks),learners:Array.isArray(c.learners)?c.learners:[]})):[];
+    const classes=Array.isArray(saved.classes)?saved.classes.map(c=>({...c,breaks:normaliseBreaks(c.breaks),learners:Array.isArray(c.learners)?c.learners:[],recurrence:normaliseRegisterRecurrence(c)})):[];
     const teachingClasses=normaliseTeachingClasses(saved.teachingClasses||saved.groups);
     const merged={
       ...clone(defaultState),...saved,
@@ -145,7 +180,51 @@
 
   function activeRegister(){return state.classes.find(c=>c.id===state.activeClassId)||null;}
   function teachingClass(id=state.selectedTeachingClassId){return state.teachingClasses.find(c=>c.id===id)||null;}
-  function registerDateActive(reg,key=todayKey()){return (!reg?.classStartDate||key>=reg.classStartDate)&&(!reg?.classEndDate||key<=reg.classEndDate);}
+  function dateFromKey(key){const [y,m,d]=String(key).split('-').map(Number);return new Date(y,m-1,d,12,0,0,0);}
+  function startOfWeek(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate(),12,0,0,0),offset=(x.getDay()+6)%7;x.setDate(x.getDate()-offset);return x;}
+  function weekDistance(aKey,bKey){const a=startOfWeek(dateFromKey(aKey)),b=startOfWeek(dateFromKey(bKey));return Math.round((b-a)/(7*24*60*60*1000));}
+  function monthDistance(aKey,bKey){const a=dateFromKey(aKey),b=dateFromKey(bKey);return (b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());}
+  function registerDateActive(reg,key=todayKey()){
+    const r=normaliseRegisterRecurrence(reg),start=r.startDate||reg?.classStartDate||'',end=r.endDate||reg?.classEndDate||'';
+    return (!start||key>=start)&&(!end||key<=end);
+  }
+  function firstWeekdayKey(startKey,dayName){
+    if(!startKey)return '';
+    const d=dateFromKey(startKey),target=WEEKDAYS.indexOf(dayName);if(target<0)return startKey;
+    const current=(d.getDay()+6)%7,add=(target-current+7)%7;d.setDate(d.getDate()+add);return dateKey(d);
+  }
+  function firstMonthKeyForDay(startKey,dayOfMonth){
+    if(!startKey)return '';
+    const start=dateFromKey(startKey),dom=boundedInt(dayOfMonth,1,31,1);
+    for(let offset=0;offset<24;offset++){
+      const y=start.getFullYear(),m=start.getMonth()+offset,candidate=new Date(y,m,dom,12,0,0,0);
+      if(candidate.getDate()!==dom)continue;
+      const key=dateKey(candidate);if(key>=startKey)return key;
+    }
+    return startKey;
+  }
+  function registerOccursOn(reg,key=todayKey()){
+    if(!reg||!registerDateActive(reg,key))return false;
+    const r=normaliseRegisterRecurrence(reg),d=dateFromKey(key);
+    if(r.type==='once')return key===r.onceDate;
+    const anchor=r.anchorDate||r.startDate||key;
+    if(r.type==='monthly'){
+      const dom=d.getDate();if(!r.monthDays.includes(dom))return false;
+      const first=firstMonthKeyForDay(anchor,dom),diff=monthDistance(first,key);
+      return key>=first&&diff>=0&&diff%r.interval===0;
+    }
+    const day=weekdayName(d);if(!r.weekdays.includes(day))return false;
+    const first=firstWeekdayKey(anchor,day),diff=weekDistance(first,key);
+    return key>=first&&diff>=0&&diff%r.interval===0;
+  }
+  function ordinal(n){const v=n%100;return `${n}${v>=11&&v<=13?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th')}`;}
+  function recurrenceText(reg){
+    const r=normaliseRegisterRecurrence(reg);
+    if(r.type==='once')return r.onceDate?prettyDateKey(r.onceDate):'One-off';
+    if(r.type==='monthly')return `${r.interval===1?'Every month':`Every ${r.interval} months`} · ${r.monthDays.map(ordinal).join(', ')||'No dates'}`;
+    const days=r.weekdays.map(x=>x.slice(0,3)).join(' · ');
+    return `${r.interval===1?'Every week':r.interval===2?'Every 2 weeks':`Every ${r.interval} weeks`} · ${days}`;
+  }
   function attendanceKey(id,key=todayKey()){return `${id}:${key}`;}
   function attendance(id,key=todayKey()){
     const k=attendanceKey(id,key);
@@ -154,8 +233,8 @@
     return state.attendance[k];
   }
   function selectUsefulRegister(){
-    const day=weekdayName(),key=todayKey(),usable=state.classes.filter(c=>!c.archived&&registerDateActive(c,key));
-    const today=usable.find(c=>c.day===day);
+    const key=todayKey(),usable=state.classes.filter(c=>!c.archived&&registerDateActive(c,key));
+    const today=usable.find(c=>registerOccursOn(c,key));
     if(today){state.activeClassId=today.id;return;}
     const active=activeRegister();if(active&&!active.archived&&registerDateActive(active,key))return;
     state.activeClassId=usable[0]?.id||state.classes.find(c=>!c.archived)?.id||null;
@@ -231,10 +310,10 @@
   }
 
   function sessionTimingState(reg,key=todayKey(),now=Date.now()){
-    const b=sessionBounds(reg,key),isToday=key===todayKey(),scheduledDay=reg.day===weekdayName(new Date(`${key}T12:00:00`)),done=completedSession(reg,key);
+    const b=sessionBounds(reg,key),isToday=key===todayKey(),scheduledDay=registerOccursOn(reg,key),done=completedSession(reg,key);
     if(done)return{code:'completed',label:'Completed',done,b};
-    if(!registerDateActive(reg,key))return{code:'outside-dates',label:'Outside class dates',b};
-    if(!isToday||!scheduledDay)return{code:'not-today',label:`Scheduled ${reg.day}`,b};
+    if(!registerDateActive(reg,key))return{code:'outside-dates',label:'Outside scheduled dates',b};
+    if(!isToday||!scheduledDay)return{code:'not-today',label:recurrenceText(reg),b};
     if(now<b.open)return{code:'early',label:`Opens ${formatTime(b.open)}`,b};
     if(now<b.start)return{code:'open-early',label:`Open · starts ${formatTime(b.start)}`,b};
     if(now>=b.end)return{code:'ended',label:'Session ended',b};
@@ -396,7 +475,7 @@
 
   function renderRegistersPage(){
     setHomeMode(false);selectUsefulRegister();const reg=activeRegister();
-    const visible=state.classes.filter(c=>!c.archived),chips=visible.map(c=>`<button class="${c.id===state.activeClassId?'active':''}" type="button" data-select-register="${attr(c.id)}">${esc(c.teachingClassId?`${c.name} · ${c.day.slice(0,3)}`:c.name)}</button>`).join('');
+    const visible=state.classes.filter(c=>!c.archived),chips=visible.map(c=>`<button class="${c.id===state.activeClassId?'active':''}" type="button" data-select-register="${attr(c.id)}">${esc(c.teachingClassId?`${c.name} · ${c.dayOfMonth||c.day?.slice(0,3)||''}`:c.name)}</button>`).join('');
     app.innerHTML=`${breadcrumb('Registers','ATTENDANCE')}<div class="register-top-actions"><button class="blue-button" type="button" data-new-register>+ New</button><button class="soft-button" type="button" data-register-list>All registers</button></div>${visible.length?`<div class="segmented samos-register-picker">${chips}</div>`:''}<div id="registerWorkspace"></div>`;
     renderRegisterWorkspace(reg);
   }
@@ -418,7 +497,7 @@
     const host=$('#registerWorkspace');if(!host)return;
     if(!reg){host.innerHTML='<section class="staff-card"><div class="empty-state"><strong>No registers yet</strong><p>Create a class or a standalone register.</p></div></section>';return;}
     const key=todayKey(),done=completedSession(reg,key),timing=sessionTimingState(reg,key),canFinish=!done&&['open-early','live','break','ended'].includes(timing.code),breakText=breakWindows(reg,key).map(x=>`${x.start}–${x.end}`).join(' · '),linkedClass=state.teachingClasses.find(c=>c.id===reg.teachingClassId);
-    host.innerHTML=`<section class="staff-card clean-register-card"><div class="clean-register-head"><div><h2>${esc(reg.name)}</h2><small>${esc([reg.day,`${reg.start||'09:00'}–${reg.end||'16:00'}`,reg.room].filter(Boolean).join(' · '))}</small></div>${sessionBanner(reg,key)}</div><div class="register-compact-meta"><span>${formatDuration(scheduledMs(reg,key))}</span>${breakText?`<span>Break ${esc(breakText)}</span>`:''}<span>${(reg.learners||[]).length} learners</span></div><div class="attendance-list">${(reg.learners||[]).length?(reg.learners||[]).map(l=>timerRow(reg,l,key)).join(''):'<div class="empty-state compact-empty"><strong>No learners</strong></div>'}</div><div class="register-bottom-actions">${linkedClass?`<button class="soft-button" type="button" data-edit-class="${attr(linkedClass.id)}">Edit class</button>`:'<button class="soft-button" type="button" data-edit-register>Edit</button>'}<button class="soft-button" type="button" data-assign-learners>+ Learner</button>${(reg.learners||[]).length&&canFinish?'<button class="blue-button" type="button" data-finish-register>Finish</button>':''}</div>${done?'<div class="session-complete-note"><strong>Saved</strong></div>':''}</section>`;
+    host.innerHTML=`<section class="staff-card clean-register-card"><div class="clean-register-head"><div><h2>${esc(reg.name)}</h2><small>${esc([recurrenceText(reg),`${reg.start||'09:00'}–${reg.end||'16:00'}`,reg.room].filter(Boolean).join(' · '))}</small></div>${sessionBanner(reg,key)}</div><div class="register-compact-meta"><span>${formatDuration(scheduledMs(reg,key))}</span>${breakText?`<span>Break ${esc(breakText)}</span>`:''}<span>${(reg.learners||[]).length} learners</span></div><div class="attendance-list">${(reg.learners||[]).length?(reg.learners||[]).map(l=>timerRow(reg,l,key)).join(''):'<div class="empty-state compact-empty"><strong>No learners</strong></div>'}</div><div class="register-bottom-actions">${linkedClass?`<button class="soft-button" type="button" data-edit-class="${attr(linkedClass.id)}">Edit class</button>`:'<button class="soft-button" type="button" data-edit-register>Edit</button>'}<button class="soft-button" type="button" data-assign-learners>+ Learner</button>${(reg.learners||[]).length&&canFinish?'<button class="blue-button" type="button" data-finish-register>Finish</button>':''}</div>${done?'<div class="session-complete-note"><strong>Saved</strong></div>':''}</section>`;
   }
 
   function historyHtml(classId=null){
@@ -428,11 +507,20 @@
 
   function renderRegisterList(){
     setHomeMode(false);state.view='registers';
-    app.innerHTML=`${breadcrumb('Register list','ATTENDANCE')}<button class="blue-button full" type="button" data-new-register>+ Create register</button><section class="staff-card"><div class="samos-section-head"><h2>Registers</h2><small>${state.classes.filter(c=>!c.archived).length}</small></div>${state.classes.filter(c=>!c.archived).length?state.classes.filter(c=>!c.archived).map(c=>`<button class="samos-row" type="button" data-open-register="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc([c.day,`${c.start||'09:00'}–${c.end||'16:00'}`].join(' · '))}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty"><strong>No registers yet</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>History</h2><small>${state.history.length}</small></div>${historyHtml()}</section>`;
+    app.innerHTML=`${breadcrumb('Register list','ATTENDANCE')}<button class="blue-button full" type="button" data-new-register>+ Create register</button><section class="staff-card"><div class="samos-section-head"><h2>Registers</h2><small>${state.classes.filter(c=>!c.archived).length}</small></div>${state.classes.filter(c=>!c.archived).length?state.classes.filter(c=>!c.archived).map(c=>`<button class="samos-row" type="button" data-open-register="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc(`${recurrenceText(c)} · ${c.start||'09:00'}–${c.end||'16:00'}`)}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty"><strong>No registers yet</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>History</h2><small>${state.history.length}</small></div>${historyHtml()}</section>`;
   }
 
 
-  function classDaysText(c){return (c?.schedule||[]).map(x=>x.day.slice(0,3)).join(' · ')||'No days set';}
+  function classDaysText(c){
+    const r=normaliseClassRecurrence(c?.recurrence);
+    if(r.type==='monthly')return (c?.schedule||[]).map(x=>x.dayOfMonth?ordinal(x.dayOfMonth):'').filter(Boolean).join(' · ')||'No dates set';
+    return (c?.schedule||[]).map(x=>x.day?.slice(0,3)).filter(Boolean).join(' · ')||'No days set';
+  }
+  function classRecurrenceText(c){
+    const r=normaliseClassRecurrence(c?.recurrence);
+    if(r.type==='monthly')return `${r.interval===1?'Every month':`Every ${r.interval} months`} · ${classDaysText(c)}`;
+    return `${r.interval===1?'Every week':r.interval===2?'Every 2 weeks':`Every ${r.interval} weeks`} · ${classDaysText(c)}`;
+  }
   function classDateText(c){if(c?.startDate&&c?.endDate)return `${prettyDateKey(c.startDate)} – ${prettyDateKey(c.endDate)}`;return 'Dates not set';}
   function classRegisterRows(c){return state.classes.filter(r=>r.teachingClassId===c.id&&!r.archived);}
   function classAttendanceStats(c){
@@ -443,14 +531,14 @@
 
   function renderTeachingClassesPage(){
     setHomeMode(false);const rows=[...state.teachingClasses].sort((a,b)=>a.name.localeCompare(b.name));
-    app.innerHTML=`${breadcrumb('Classes','CLASSROOM')}<button class="blue-button full" type="button" data-new-class>+ Create class</button><section class="staff-card"><div class="samos-section-head"><h2>Classes</h2><small>${rows.length}</small></div>${rows.length?rows.map(c=>{const course=state.courses.find(x=>x.id===c.courseId),a=classAttendanceStats(c);return `<button class="samos-row class-list-row" type="button" data-open-teaching-class="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc(course?.name||'No course')} · ${esc(classDaysText(c))}</small><em>${(c.learnerIds||[]).length} learners · ${a.percentage}% attendance</em></span><b>›</b></button>`}).join(''):'<div class="samos-empty"><strong>No classes yet</strong><p>Create a class and Samos will build its weekly registers.</p></div>'}</section>`;
+    app.innerHTML=`${breadcrumb('Classes','CLASSROOM')}<button class="blue-button full" type="button" data-new-class>+ Create class</button><section class="staff-card"><div class="samos-section-head"><h2>Classes</h2><small>${rows.length}</small></div>${rows.length?rows.map(c=>{const course=state.courses.find(x=>x.id===c.courseId),a=classAttendanceStats(c);return `<button class="samos-row class-list-row" type="button" data-open-teaching-class="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc(course?.name||'No course')} · ${esc(classRecurrenceText(c))}</small><em>${(c.learnerIds||[]).length} learners · ${a.percentage}% attendance</em></span><b>›</b></button>`}).join(''):'<div class="samos-empty"><strong>No classes yet</strong><p>Create a class and Samos will build its recurring registers.</p></div>'}</section>`;
   }
 
   function renderTeachingClassDetail(){
     setHomeMode(false);const c=teachingClass();if(!c){state.view='classes';return renderTeachingClassesPage();}
     const course=state.courses.find(x=>x.id===c.courseId),regs=classRegisterRows(c),learners=(c.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name)),a=classAttendanceStats(c);
     const courseResources=course?state.resources.filter(r=>r.courseId===course.id):[],sow=course?state.resources.find(r=>r.id===course.sowId):null,lessons=courseResources.filter(r=>r.type==='lesson-plan'),presentations=courseResources.filter(r=>r.type==='presentation'),quizzes=courseResources.filter(r=>r.type==='quiz');
-    app.innerHTML=`${breadcrumb(c.name,'CLASS')}<section class="staff-card class-overview"><div class="class-title-line"><div><strong>${esc(course?.name||'No course linked')}</strong><small>${esc(classDateText(c))}</small><span>${esc(classDaysText(c))}</span></div><b>${a.percentage}%</b></div><div class="class-summary-grid"><div><strong>${learners.length}</strong><span>Learners</span></div><div><strong>${c.schedule?.length||0}</strong><span>Days</span></div><div><strong>${regs.length}</strong><span>Registers</span></div><div><strong>${a.percentage}%</strong><span>Attendance</span></div></div><button class="soft-button full" type="button" data-edit-class="${attr(c.id)}">Edit class</button></section><section class="staff-card"><div class="samos-section-head"><h2>Learners</h2><small>${learners.length}</small></div>${learners.length?learners.map(l=>`<div class="class-learner-row"><button type="button" data-learner-info="${attr(l.id)}"><strong>${esc(l.name)}</strong><small>${learnerAttendanceStats(l.id).percentage}% attendance</small></button><button type="button" class="danger-text" data-remove-class-learner="${attr(l.id)}">Remove</button></div>`).join(''):'<div class="samos-empty compact-empty"><strong>No learners</strong></div>'}<button class="soft-button full" type="button" data-manage-class-learners="${attr(c.id)}">Manage learners</button></section><section class="staff-card"><div class="samos-section-head"><h2>Weekly registers</h2><small>${regs.length}</small></div>${regs.length?regs.map(r=>`<button class="samos-row" type="button" data-open-register="${attr(r.id)}"><span><strong>${esc(r.day)}</strong><small>${esc(r.start)}–${esc(r.end)} · ${formatDuration(scheduledMs(r))}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty compact-empty"><strong>No register days</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Course teaching</h2><small>${course?'Linked':'Not linked'}</small></div>${course?`<button class="samos-row" type="button" data-open-course="${attr(course.id)}"><span><strong>${esc(course.name)}</strong><small>${esc([course.code,course.version].filter(Boolean).join(' · ')||'Official course')}</small></span><b>›</b></button><div class="class-resource-grid">${sow?`<button type="button" data-view-resource="${attr(sow.id)}"><strong>SOW</strong><span>Open</span></button>`:'<div><strong>SOW</strong><span>Not created</span></div>'}<button type="button" data-class-resource-filter="lesson-plan"><strong>${lessons.length}</strong><span>Lesson plans</span></button><button type="button" data-class-resource-filter="presentation"><strong>${presentations.length}</strong><span>Slides</span></button><button type="button" data-class-resource-filter="quiz"><strong>${quizzes.length}</strong><span>Quizzes</span></button></div>`:'<div class="samos-empty compact-empty"><strong>No course linked</strong><p>Edit this class to choose an official course.</p></div>'}</section>`;
+    app.innerHTML=`${breadcrumb(c.name,'CLASS')}<section class="staff-card class-overview"><div class="class-title-line"><div><strong>${esc(course?.name||'No course linked')}</strong><small>${esc(classDateText(c))}</small><span>${esc(classRecurrenceText(c))}</span></div><b>${a.percentage}%</b></div><div class="class-summary-grid"><div><strong>${learners.length}</strong><span>Learners</span></div><div><strong>${c.schedule?.length||0}</strong><span>Days</span></div><div><strong>${regs.length}</strong><span>Registers</span></div><div><strong>${a.percentage}%</strong><span>Attendance</span></div></div><button class="soft-button full" type="button" data-edit-class="${attr(c.id)}">Edit class</button></section><section class="staff-card"><div class="samos-section-head"><h2>Learners</h2><small>${learners.length}</small></div>${learners.length?learners.map(l=>`<div class="class-learner-row"><button type="button" data-learner-info="${attr(l.id)}"><strong>${esc(l.name)}</strong><small>${learnerAttendanceStats(l.id).percentage}% attendance</small></button><button type="button" class="danger-text" data-remove-class-learner="${attr(l.id)}">Remove</button></div>`).join(''):'<div class="samos-empty compact-empty"><strong>No learners</strong></div>'}<button class="soft-button full" type="button" data-manage-class-learners="${attr(c.id)}">Manage learners</button></section><section class="staff-card"><div class="samos-section-head"><h2>Registers</h2><small>${regs.length}</small></div>${regs.length?regs.map(r=>`<button class="samos-row" type="button" data-open-register="${attr(r.id)}"><span><strong>${esc(r.day)}</strong><small>${esc(recurrenceText(r))} · ${esc(r.start)}–${esc(r.end)}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty compact-empty"><strong>No register days</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Course teaching</h2><small>${course?'Linked':'Not linked'}</small></div>${course?`<button class="samos-row" type="button" data-open-course="${attr(course.id)}"><span><strong>${esc(course.name)}</strong><small>${esc([course.code,course.version].filter(Boolean).join(' · ')||'Official course')}</small></span><b>›</b></button><div class="class-resource-grid">${sow?`<button type="button" data-view-resource="${attr(sow.id)}"><strong>SOW</strong><span>Open</span></button>`:'<div><strong>SOW</strong><span>Not created</span></div>'}<button type="button" data-class-resource-filter="lesson-plan"><strong>${lessons.length}</strong><span>Lesson plans</span></button><button type="button" data-class-resource-filter="presentation"><strong>${presentations.length}</strong><span>Slides</span></button><button type="button" data-class-resource-filter="quiz"><strong>${quizzes.length}</strong><span>Quizzes</span></button></div>`:'<div class="samos-empty compact-empty"><strong>No course linked</strong><p>Edit this class to choose an official course.</p></div>'}</section>`;
   }
 
   function renderResourcesPage(){
@@ -583,52 +671,84 @@
   function assistantGames(){assistantRoute='games';const q=state.resources.filter(r=>r.type==='quiz').length;copy('Games','Offline classroom quizzes and quick checks.');content.innerHTML=`<div class="ta-menu"><button data-assistant-action="games:create-quiz"><strong>Create a quiz</strong><span>Samos guides you through every question.</span></button><button data-assistant-action="games:saved-quizzes"><strong>Saved quizzes</strong><span>${q} quiz${q===1?'':'zes'} ready to reuse.</span></button><button data-assistant-action="games:import-result"><strong>Import learner result</strong><span>Scan or paste a result QR if you choose to record a fun quiz score.</span></button></div>`;}
 
   /* ---------------- Class creation wizard ---------------- */
-  const WEEKDAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   function startClassWizard(edit=false,id=null,step=1){
     const c=edit?state.teachingClasses.find(x=>x.id===(id||state.selectedTeachingClassId)):null;
-    classDraft=c?{...clone(c),edit:true}:{id:null,edit:false,name:'',room:'',courseId:'',startDate:'',endDate:'',schedule:[{day:'Monday',start:'09:00',end:'16:00'}],breaks:[],learnerIds:[]};
+    classDraft=c?{...clone(c),recurrence:normaliseClassRecurrence(c.recurrence),edit:true}:{id:null,edit:false,name:'',room:'',courseId:'',startDate:'',endDate:'',recurrence:{type:'weekly',interval:1},schedule:[{day:'Monday',start:'09:00',end:'16:00'}],breaks:[],learnerIds:[]};
     classWizardStep=Math.max(1,Math.min(6,step||1));
     if(!overlay.classList.contains('open'))openAssistant('class:wizard');else{assistantRoute='class:wizard';renderClassWizard();}
   }
   function classProgress(){return `<div class="wizard-progress"><span style="width:${classWizardStep/6*100}%"></span></div>`;}
+  function monthDayPicker(selected,attrName){
+    const set=new Set((selected||[]).map(Number));
+    return `<div class="month-day-grid">${Array.from({length:31},(_,i)=>i+1).map(n=>`<label class="month-day-chip"><input type="checkbox" ${attrName} value="${n}" ${set.has(n)?'checked':''}><span>${n}</span></label>`).join('')}</div>`;
+  }
   function renderClassWizard(){
-    assistantRoute='class:wizard';if(!classDraft)return assistantClasses();const d=classDraft,edit=d.edit?'Edit':'Create';
+    assistantRoute='class:wizard';if(!classDraft)return assistantClasses();const d=classDraft,edit=d.edit?'Edit':'Create',rec=normaliseClassRecurrence(d.recurrence);
     if(classWizardStep===1){copy(`${edit} class`,'Step 1 of 6 · Class details');content.innerHTML=`${classProgress()}<div class="ta-card"><label class="ta-field"><span>Class name</span><input id="classNameInput" value="${attr(d.name)}" placeholder="e.g. Level 2 Bricklaying · Group A"></label><label class="ta-field"><span>Room / workshop</span><input id="classRoomInput" value="${attr(d.room||'')}" placeholder="Optional"></label><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;}
     if(classWizardStep===2){copy('Choose the course','Step 2 of 6 · Link teaching to an official course');content.innerHTML=`${classProgress()}<div class="ta-card"><label class="ta-field"><span>Official course</span><select id="classCourseInput"><option value="">No course yet</option>${state.courses.map(c=>`<option value="${attr(c.id)}" ${c.id===d.courseId?'selected':''}>${esc(c.name)}${c.code?` · ${esc(c.code)}`:''}</option>`).join('')}</select></label>${state.courses.length?'':'<div class="wizard-note"><strong>No course uploaded yet</strong><span>You can create the class now and link a course later.</span></div>'}<div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;}
     if(classWizardStep===3){copy('Class dates','Step 3 of 6 · How long does this class run?');content.innerHTML=`${classProgress()}<div class="ta-card"><div class="ta-row"><label class="ta-field"><span>Start date</span><input id="classStartDateInput" type="date" value="${attr(d.startDate||'')}"></label><label class="ta-field"><span>End date</span><input id="classEndDateInput" type="date" value="${attr(d.endDate||'')}"></label></div><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;}
     if(classWizardStep===4){
-      copy('Weekly timetable','Step 4 of 6 · Choose the days, times and breaks');const byDay=new Map((d.schedule||[]).map(x=>[x.day,x]));
-      const days=WEEKDAYS.map(day=>{const x=byDay.get(day)||{day,start:'09:00',end:'16:00'},checked=byDay.has(day);return `<div class="class-day-row"><label><input type="checkbox" data-class-day="${attr(day)}" ${checked?'checked':''}><strong>${day.slice(0,3)}</strong></label><input type="time" data-class-day-start="${attr(day)}" value="${attr(x.start)}"><input type="time" data-class-day-end="${attr(day)}" value="${attr(x.end)}"></div>`}).join('');
+      copy('Class timetable','Step 4 of 6 · Choose how often the class repeats');
+      const byDay=new Map((d.schedule||[]).filter(x=>x.day).map(x=>[x.day,x]));
+      const weeklyDays=WEEKDAYS.map(day=>{const x=byDay.get(day)||{day,start:'09:00',end:'16:00'},checked=byDay.has(day);return `<div class="class-day-row"><label><input type="checkbox" data-class-day="${attr(day)}" ${checked?'checked':''}><strong>${day.slice(0,3)}</strong></label><input type="time" data-class-day-start="${attr(day)}" value="${attr(x.start)}"><input type="time" data-class-day-end="${attr(day)}" value="${attr(x.end)}"></div>`}).join('');
+      const monthlyRows=(d.schedule||[]).filter(x=>x.dayOfMonth),monthlySelected=monthlyRows.map(x=>x.dayOfMonth),monthlyStart=monthlyRows[0]?.start||d.schedule?.[0]?.start||'09:00',monthlyEnd=monthlyRows[0]?.end||d.schedule?.[0]?.end||'16:00';
       const breaks=(d.breaks||[]).length?d.breaks.map((b,i)=>`<div class="break-editor"><div class="ta-row"><label class="ta-field"><span>Break starts</span><input type="time" data-class-break-start="${i}" value="${attr(b.start)}"></label><label class="ta-field"><span>Break ends</span><input type="time" data-class-break-end="${i}" value="${attr(b.end)}"></label></div><button type="button" class="danger-text" data-remove-class-break="${i}">Remove</button></div>`).join(''):'<div class="v39-empty compact-empty"><strong>No breaks</strong></div>';
-      content.innerHTML=`${classProgress()}<div class="ta-card"><div class="class-day-list">${days}</div><div class="break-editor-list">${breaks}</div><button class="soft-button full" type="button" data-add-class-break>+ Add break</button><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;
+      content.innerHTML=`${classProgress()}<div class="ta-card"><div class="recurrence-head"><label class="ta-field"><span>Repeats</span><select id="classRecurrenceType"><option value="weekly" ${rec.type==='weekly'?'selected':''}>By week</option><option value="monthly" ${rec.type==='monthly'?'selected':''}>By month</option></select></label><label class="ta-field"><span>Every</span><div class="repeat-interval"><input id="classRepeatInterval" type="number" min="1" max="12" inputmode="numeric" value="${rec.interval}"><b id="classRepeatUnit">${rec.type==='monthly'?'month(s)':'week(s)'}</b></div></label></div><div id="classWeeklyPanel" ${rec.type==='weekly'?'':'hidden'}><div class="recurrence-label">Choose day/s and time</div><div class="class-day-list">${weeklyDays}</div></div><div id="classMonthlyPanel" ${rec.type==='monthly'?'':'hidden'}><div class="recurrence-label">Choose day/s of the month</div>${monthDayPicker(monthlySelected,'data-class-month-day')}<div class="ta-row monthly-time-row"><label class="ta-field"><span>Start time</span><input id="classMonthlyStart" type="time" value="${attr(monthlyStart)}"></label><label class="ta-field"><span>Finish time</span><input id="classMonthlyEnd" type="time" value="${attr(monthlyEnd)}"></label></div></div><div class="recurrence-divider"></div><div class="samos-section-head compact-head"><h2>Breaks</h2><small>Optional</small></div><div class="break-editor-list">${breaks}</div><button class="soft-button full" type="button" data-add-class-break>+ Add break</button><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;
     }
     if(classWizardStep===5){copy('Choose learners','Step 5 of 6 · Add or remove learners');const selected=new Set(d.learnerIds||[]),rows=state.learners.length?[...state.learners].sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<label class="wizard-learner"><input type="checkbox" data-class-learner value="${attr(l.id)}" ${selected.has(l.id)?'checked':''}><span><strong>${esc(l.name)}</strong><small>${esc(l.externalId||'')}</small></span></label>`).join(''):'<div class="v39-empty"><strong>No learners yet</strong><span>Add one here or continue and add them later.</span></div>';content.innerHTML=`${classProgress()}<div class="ta-card"><button class="soft-button full" type="button" data-assistant-add-learner>+ Add new learner</button><div class="wizard-learners">${rows}</div><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Review class</button></div></div>`;return;}
     const course=state.courses.find(c=>c.id===d.courseId),breakText=d.breaks?.length?d.breaks.map(b=>`${b.start}–${b.end}`).join(' · '):'None';
-    copy('Check the class','Step 6 of 6 · Samos will create the weekly registers');content.innerHTML=`${classProgress()}<div class="ta-card"><div class="wizard-review"><span><small>CLASS</small><strong>${esc(d.name||'Unnamed')}</strong><em>${esc(course?.name||'No course linked')}</em></span><span><small>DATES</small><strong>${esc(d.startDate||'Not set')}</strong><em>to ${esc(d.endDate||'Not set')}</em></span><span><small>DAYS</small><strong>${d.schedule?.length||0}</strong><em>${esc(classDaysText(d))}</em></span><span><small>LEARNERS</small><strong>${d.learnerIds?.length||0}</strong><em>Breaks: ${esc(breakText)}</em></span></div><div class="ta-actions"><button class="primary" type="button" data-save-class>${d.edit?'Save changes':'Create class'}</button>${d.edit?'<button type="button" data-delete-class>Delete class</button>':''}</div></div>`;
+    copy('Check the class','Step 6 of 6 · Samos will create the recurring registers');content.innerHTML=`${classProgress()}<div class="ta-card"><div class="wizard-review"><span><small>CLASS</small><strong>${esc(d.name||'Unnamed')}</strong><em>${esc(course?.name||'No course linked')}</em></span><span><small>DATES</small><strong>${esc(d.startDate||'Not set')}</strong><em>to ${esc(d.endDate||'Not set')}</em></span><span><small>REPEATS</small><strong>${esc(classRecurrenceText(d))}</strong><em>${d.schedule?.length||0} scheduled day${d.schedule?.length===1?'':'s'}</em></span><span><small>LEARNERS</small><strong>${d.learnerIds?.length||0}</strong><em>Breaks: ${esc(breakText)}</em></span></div><div class="ta-actions"><button class="primary" type="button" data-save-class>${d.edit?'Save changes':'Create class'}</button>${d.edit?'<button type="button" data-delete-class>Delete class</button>':''}</div></div>`;
   }
   function syncClassDraft(){
     if(!classDraft)return;
     if(classWizardStep===1){classDraft.name=$('#classNameInput')?.value.trim()??classDraft.name;classDraft.room=$('#classRoomInput')?.value.trim()??classDraft.room;}
     if(classWizardStep===2)classDraft.courseId=$('#classCourseInput')?.value||'';
     if(classWizardStep===3){classDraft.startDate=$('#classStartDateInput')?.value||'';classDraft.endDate=$('#classEndDateInput')?.value||'';}
-    if(classWizardStep===4){classDraft.schedule=$$('[data-class-day]:checked',content).map(ch=>({day:ch.dataset.classDay,start:$(`[data-class-day-start="${ch.dataset.classDay}"]`,content)?.value||'09:00',end:$(`[data-class-day-end="${ch.dataset.classDay}"]`,content)?.value||'16:00'}));classDraft.breaks=(classDraft.breaks||[]).map((b,i)=>({...b,start:$(`[data-class-break-start="${i}"]`,content)?.value||b.start,end:$(`[data-class-break-end="${i}"]`,content)?.value||b.end}));}
+    if(classWizardStep===4){
+      const type=$('#classRecurrenceType')?.value==='monthly'?'monthly':'weekly',interval=boundedInt($('#classRepeatInterval')?.value,1,12,1);
+      classDraft.recurrence={type,interval};
+      if(type==='monthly'){
+        const start=$('#classMonthlyStart')?.value||'09:00',end=$('#classMonthlyEnd')?.value||'16:00';
+        classDraft.schedule=$$('[data-class-month-day]:checked',content).map(ch=>({dayOfMonth:Number(ch.value),start,end}));
+      }else{
+        classDraft.schedule=$$('[data-class-day]:checked',content).map(ch=>({day:ch.dataset.classDay,start:$(`[data-class-day-start="${ch.dataset.classDay}"]`,content)?.value||'09:00',end:$(`[data-class-day-end="${ch.dataset.classDay}"]`,content)?.value||'16:00'}));
+      }
+      classDraft.breaks=(classDraft.breaks||[]).map((b,i)=>({...b,start:$(`[data-class-break-start="${i}"]`,content)?.value||b.start,end:$(`[data-class-break-end="${i}"]`,content)?.value||b.end}));
+    }
     if(classWizardStep===5)classDraft.learnerIds=$$('[data-class-learner]:checked',content).map(x=>x.value);
   }
   function validateClassStep(){
     syncClassDraft();const d=classDraft;if(!d)return false;
     if(classWizardStep===1&&!d.name){toast('Add a class name');return false;}
     if(classWizardStep===3){if(!d.startDate||!d.endDate){toast('Add the class start and end dates');return false;}if(d.endDate<d.startDate){toast('End date must be after the start date');return false;}}
-    if(classWizardStep===4){if(!d.schedule.length){toast('Choose at least one class day');return false;}for(const x of d.schedule){if(localMs(todayKey(),x.end)<=localMs(todayKey(),x.start)){toast(`Check the ${x.day} times`);return false;}}for(const b of d.breaks||[]){if(!b.start||!b.end||localMs(todayKey(),b.end)<=localMs(todayKey(),b.start)){toast('Check the break times');return false;}for(const x of d.schedule){if(b.start<x.start||b.end>x.end){toast('Breaks must fit inside every selected class day');return false;}}}const ordered=[...(d.breaks||[])].sort((a,b)=>a.start.localeCompare(b.start));for(let i=1;i<ordered.length;i++)if(ordered[i].start<ordered[i-1].end){toast('Breaks cannot overlap');return false;}d.breaks=ordered.map((b,i)=>({...b,label:`Break ${i+1}`}));}
+    if(classWizardStep===4){
+      if(!d.schedule.length){toast(d.recurrence?.type==='monthly'?'Choose at least one day of the month':'Choose at least one class day');return false;}
+      for(const x of d.schedule){if(localMs(todayKey(),x.end)<=localMs(todayKey(),x.start)){toast('Check the class start and finish times');return false;}}
+      for(const b of d.breaks||[]){if(!b.start||!b.end||localMs(todayKey(),b.end)<=localMs(todayKey(),b.start)){toast('Check the break times');return false;}for(const x of d.schedule){if(b.start<x.start||b.end>x.end){toast('Breaks must fit inside every selected class session');return false;}}}
+      const ordered=[...(d.breaks||[])].sort((a,b)=>a.start.localeCompare(b.start));for(let i=1;i<ordered.length;i++)if(ordered[i].start<ordered[i-1].end){toast('Breaks cannot overlap');return false;}d.breaks=ordered.map((b,i)=>({...b,label:`Break ${i+1}`}));
+    }
     return true;
   }
   function syncTeachingClassRegisters(c){
-    const learners=(c.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).map(clone),existing=state.classes.filter(r=>r.teachingClassId===c.id),keep=new Set();
-    for(const day of c.schedule||[]){let r=existing.find(x=>x.scheduleDayKey===day.day||x.day===day.day);const values={name:c.name,day:day.day,room:c.room||'',start:day.start,end:day.end,breaks:normaliseBreaks(c.breaks),learners,teachingClassId:c.id,courseId:c.courseId||'',classStartDate:c.startDate||'',classEndDate:c.endDate||'',generatedFromClass:true,archived:false,scheduleDayKey:day.day};if(r)Object.assign(r,values);else{r={id:uid(),...values};state.classes.push(r);}keep.add(r.id);}
+    const learners=(c.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).map(clone),existing=state.classes.filter(r=>r.teachingClassId===c.id),keep=new Set(),rec=normaliseClassRecurrence(c.recurrence);
+    for(const slot of c.schedule||[]){
+      const monthly=rec.type==='monthly'||Boolean(slot.dayOfMonth),slotKey=monthly?`m:${slot.dayOfMonth}`:`w:${slot.day}`;
+      let r=existing.find(x=>x.scheduleDayKey===slotKey||(!monthly&&(x.scheduleDayKey===slot.day||x.day===slot.day)));
+      const recurrence=monthly
+        ? {type:'monthly',interval:rec.interval,weekdays:[],monthDays:[slot.dayOfMonth],startDate:c.startDate||'',endDate:c.endDate||'',onceDate:'',anchorDate:c.startDate||''}
+        : {type:'weekly',interval:rec.interval,weekdays:[slot.day],monthDays:[],startDate:c.startDate||'',endDate:c.endDate||'',onceDate:'',anchorDate:c.startDate||''};
+      const values={name:c.name,day:monthly?`Day ${slot.dayOfMonth}`:slot.day,room:c.room||'',start:slot.start,end:slot.end,breaks:normaliseBreaks(c.breaks),learners,teachingClassId:c.id,courseId:c.courseId||'',classStartDate:c.startDate||'',classEndDate:c.endDate||'',recurrence,generatedFromClass:true,archived:false,scheduleDayKey:slotKey};
+      if(r)Object.assign(r,values);else{r={id:uid(),...values};state.classes.push(r);}keep.add(r.id);
+    }
     for(const r of existing){if(keep.has(r.id))continue;if(state.history.some(h=>h.classId===r.id))r.archived=true;else{state.classes=state.classes.filter(x=>x.id!==r.id);Object.keys(state.attendance).filter(k=>k.startsWith(`${r.id}:`)).forEach(k=>delete state.attendance[k]);}}
     c.registerIds=[...keep];if(!state.activeClassId&&c.registerIds.length)state.activeClassId=c.registerIds[0];
   }
   function saveClassWizard(){
-    syncClassDraft();if(!classDraft?.name)return;let c;if(classDraft.edit){c=state.teachingClasses.find(x=>x.id===classDraft.id);if(!c)return;Object.assign(c,{name:classDraft.name,room:classDraft.room,courseId:classDraft.courseId,startDate:classDraft.startDate,endDate:classDraft.endDate,schedule:normaliseTeachingSchedule(classDraft.schedule),breaks:normaliseBreaks(classDraft.breaks),learnerIds:[...new Set(classDraft.learnerIds||[])]});}else{c={id:uid(),name:classDraft.name,room:classDraft.room,courseId:classDraft.courseId,startDate:classDraft.startDate,endDate:classDraft.endDate,schedule:normaliseTeachingSchedule(classDraft.schedule),breaks:normaliseBreaks(classDraft.breaks),learnerIds:[...new Set(classDraft.learnerIds||[])],registerIds:[]};state.teachingClasses.push(c);}syncTeachingClassRegisters(c);state.selectedTeachingClassId=c.id;classDraft=null;classWizardStep=1;save(false);closeAssistant();state.view='class';save();toast('Class saved');
+    syncClassDraft();if(!classDraft?.name)return;let c;
+    const values={name:classDraft.name,room:classDraft.room,courseId:classDraft.courseId,startDate:classDraft.startDate,endDate:classDraft.endDate,recurrence:normaliseClassRecurrence(classDraft.recurrence),schedule:normaliseTeachingSchedule(classDraft.schedule),breaks:normaliseBreaks(classDraft.breaks),learnerIds:[...new Set(classDraft.learnerIds||[])]};
+    if(classDraft.edit){c=state.teachingClasses.find(x=>x.id===classDraft.id);if(!c)return;Object.assign(c,values);}
+    else{c={id:uid(),...values,registerIds:[]};state.teachingClasses.push(c);}
+    syncTeachingClassRegisters(c);state.selectedTeachingClassId=c.id;classDraft=null;classWizardStep=1;save(false);closeAssistant();state.view='class';save();toast('Class saved');
   }
   function deleteTeachingClass(id){
     const c=state.teachingClasses.find(x=>x.id===id);if(!c||!confirm(`Delete ${c.name}? Completed attendance history will be kept.`))return;const regs=state.classes.filter(r=>r.teachingClassId===c.id);for(const r of regs){if(state.history.some(h=>h.classId===r.id))r.archived=true;else{state.classes=state.classes.filter(x=>x.id!==r.id);Object.keys(state.attendance).filter(k=>k.startsWith(`${r.id}:`)).forEach(k=>delete state.attendance[k]);}}state.teachingClasses=state.teachingClasses.filter(x=>x.id!==c.id);state.selectedTeachingClassId=null;classDraft=null;classWizardStep=1;save(false);if(overlay.classList.contains('open'))closeAssistant();state.view='classes';save();toast('Class deleted');
@@ -638,55 +758,84 @@
   /* ---------------- Register creation wizard ---------------- */
   function startRegisterWizard(edit=false,id=null){
     const reg=edit?state.classes.find(c=>c.id===(id||state.activeClassId)):null;
+    const rec=reg?normaliseRegisterRecurrence(reg):{type:'weekly',interval:1,weekdays:[weekdayName()],monthDays:[],startDate:todayKey(),endDate:'',onceDate:'',anchorDate:todayKey()};
     registerDraft={
       id:reg?.id||null,edit:Boolean(reg),name:reg?.name||'',day:reg?.day||weekdayName(),room:reg?.room||'',start:reg?.start||'09:00',end:reg?.end||'16:00',
-      breaks:normaliseBreaks(reg?.breaks),learnerIds:(reg?.learners||[]).map(l=>l.id)
+      recurrence:rec,breaks:normaliseBreaks(reg?.breaks),learnerIds:(reg?.learners||[]).map(l=>l.id),teachingClassId:reg?.teachingClassId||''
     };
     registerWizardStep=1;
     if(!overlay.classList.contains('open'))openAssistant('register:wizard');else{assistantRoute='register:wizard';renderRegisterWizard();}
   }
 
-  function wizardProgress(){return `<div class="wizard-progress"><span style="width:${registerWizardStep/5*100}%"></span></div>`;}
+  function wizardProgress(){return `<div class="wizard-progress"><span style="width:${registerWizardStep/6*100}%"></span></div>`;}
 
   function renderRegisterWizard(){
     assistantRoute='register:wizard';if(!registerDraft)return assistantRegisters();
-    const d=registerDraft,edit=d.edit?'Edit':'Create';
+    const d=registerDraft,edit=d.edit?'Edit':'Create',rec=normaliseRegisterRecurrence(d);
     if(registerWizardStep===1){
-      copy(`${edit} register`,'Step 1 of 5 · Register details');
-      content.innerHTML=`${wizardProgress()}<div class="ta-card"><label class="ta-field"><span>Register name</span><input id="wizardRegisterName" value="${attr(d.name)}" placeholder="e.g. Level 2 Bricklaying" autocomplete="off"></label><div class="ta-row"><label class="ta-field"><span>Day</span><select id="wizardRegisterDay">${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(x=>`<option ${x===d.day?'selected':''}>${x}</option>`).join('')}</select></label><label class="ta-field"><span>Room</span><input id="wizardRegisterRoom" value="${attr(d.room)}" placeholder="Optional"></label></div><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
+      copy(`${edit} register`,'Step 1 of 6 · Register details');
+      content.innerHTML=`${wizardProgress()}<div class="ta-card"><label class="ta-field"><span>Register name</span><input id="wizardRegisterName" value="${attr(d.name)}" placeholder="e.g. Level 2 Bricklaying" autocomplete="off"></label><label class="ta-field"><span>Room</span><input id="wizardRegisterRoom" value="${attr(d.room)}" placeholder="Optional"></label><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
     }
     if(registerWizardStep===2){
-      copy('Session times','Step 2 of 5 · Set the teaching day');
-      content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="ta-row"><label class="ta-field"><span>Start time</span><input id="wizardRegisterStart" type="time" value="${attr(d.start)}"></label><label class="ta-field"><span>Finish time</span><input id="wizardRegisterEnd" type="time" value="${attr(d.end)}"></label></div><div class="wizard-note"><strong>Early start</strong><span>The register opens 15 minutes before the start time. Learner timers automatically stop at the finish time.</span></div><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
+      copy('When does it repeat?','Step 2 of 6 · One-off, weekly or monthly');
+      const weekdaySet=new Set(rec.weekdays),monthSelected=rec.monthDays;
+      content.innerHTML=`${wizardProgress()}<div class="ta-card"><label class="ta-field"><span>Repeats</span><select id="wizardRecurrenceType"><option value="once" ${rec.type==='once'?'selected':''}>Does not repeat</option><option value="weekly" ${rec.type==='weekly'?'selected':''}>By week</option><option value="monthly" ${rec.type==='monthly'?'selected':''}>By month</option></select></label><div id="wizardOncePanel" ${rec.type==='once'?'':'hidden'}><label class="ta-field"><span>Date</span><input id="wizardOnceDate" type="date" value="${attr(rec.onceDate||rec.startDate||todayKey())}"></label></div><div id="wizardRecurringPanel" ${rec.type==='once'?'hidden':''}><div class="ta-row"><label class="ta-field"><span>Starts</span><input id="wizardRepeatStartDate" type="date" value="${attr(rec.startDate||todayKey())}"></label><label class="ta-field"><span>Ends</span><input id="wizardRepeatEndDate" type="date" value="${attr(rec.endDate||'')}"></label></div><label class="ta-field"><span>Every</span><div class="repeat-interval"><input id="wizardRepeatInterval" type="number" min="1" max="12" inputmode="numeric" value="${rec.interval}"><b id="wizardRepeatUnit">${rec.type==='monthly'?'month(s)':'week(s)'}</b></div></label></div><div id="wizardWeeklyPanel" ${rec.type==='weekly'?'':'hidden'}><div class="recurrence-label">Choose day/s of the week</div><div class="weekday-chip-grid">${WEEKDAYS.map(day=>`<label class="weekday-chip"><input type="checkbox" data-wizard-weekday value="${attr(day)}" ${weekdaySet.has(day)?'checked':''}><span>${day.slice(0,3)}</span></label>`).join('')}</div></div><div id="wizardMonthlyPanel" ${rec.type==='monthly'?'':'hidden'}><div class="recurrence-label">Choose day/s of the month</div>${monthDayPicker(monthSelected,'data-wizard-month-day')}</div><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
     }
     if(registerWizardStep===3){
-      copy('Add breaks','Step 3 of 5 · Breaks are removed from attendance time');
-      const rows=d.breaks.length?d.breaks.map((b,i)=>`<div class="break-editor" data-break-index="${i}"><div class="ta-row"><label class="ta-field"><span>Break starts</span><input type="time" data-wizard-break-start="${i}" value="${attr(b.start)}"></label><label class="ta-field"><span>Break ends</span><input type="time" data-wizard-break-end="${i}" value="${attr(b.end)}"></label></div><button type="button" class="danger-text" data-remove-wizard-break="${i}">Remove break</button></div>`).join(''):'<div class="v39-empty compact-empty"><strong>No breaks added</strong><span>If there are no breaks, just continue.</span></div>';
-      content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="break-editor-list">${rows}</div><button class="soft-button full" type="button" data-add-wizard-break>+ Add break</button><div class="wizard-note"><strong>Automatic pause</strong><span>If a learner timer is running during a break, Samos keeps it running visually but does not count any break minutes.</span></div><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
+      copy('Session times','Step 3 of 6 · Set the teaching time');
+      content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="ta-row"><label class="ta-field"><span>Start time</span><input id="wizardRegisterStart" type="time" value="${attr(d.start)}"></label><label class="ta-field"><span>Finish time</span><input id="wizardRegisterEnd" type="time" value="${attr(d.end)}"></label></div><div class="wizard-note"><strong>15 minute early access</strong><span>The register opens 15 minutes before the start. Learner timers stop automatically at the finish.</span></div><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
     }
     if(registerWizardStep===4){
-      copy('Choose learners','Step 4 of 5 · Select who belongs on this register');
+      copy('Add breaks','Step 4 of 6 · Breaks do not count toward attendance');
+      const rows=d.breaks.length?d.breaks.map((b,i)=>`<div class="break-editor" data-break-index="${i}"><div class="ta-row"><label class="ta-field"><span>Break starts</span><input type="time" data-wizard-break-start="${i}" value="${attr(b.start)}"></label><label class="ta-field"><span>Break ends</span><input type="time" data-wizard-break-end="${i}" value="${attr(b.end)}"></label></div><button type="button" class="danger-text" data-remove-wizard-break="${i}">Remove break</button></div>`).join(''):'<div class="v39-empty compact-empty"><strong>No breaks added</strong><span>Continue if there are no breaks.</span></div>';
+      content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="break-editor-list">${rows}</div><button class="soft-button full" type="button" data-add-wizard-break>+ Add break</button><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Next</button></div></div>`;return;
+    }
+    if(registerWizardStep===5){
+      copy('Choose learners','Step 5 of 6 · Select who belongs on this register');
       const selected=new Set(d.learnerIds||[]),rows=state.learners.length?[...state.learners].sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<label class="wizard-learner"><input type="checkbox" data-wizard-learner value="${attr(l.id)}" ${selected.has(l.id)?'checked':''}><span><strong>${esc(l.name)}</strong><small>${esc(l.externalId||'No learner ID')}</small></span></label>`).join(''):'<div class="v39-empty"><strong>No learners yet</strong><span>You can create the register now and add learners afterwards.</span></div>';
       content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="wizard-learners">${rows}</div><div class="ta-actions"><button class="primary" type="button" data-register-wizard-next>Review register</button></div></div>`;return;
     }
     const expected=scheduledMs(d,todayKey()),breakText=d.breaks.length?d.breaks.map(b=>`${b.start}–${b.end}`).join(' · '):'No breaks';
-    copy('Check the register','Step 5 of 5 · Ready to save');
-    content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="wizard-review"><span><small>REGISTER</small><strong>${esc(d.name||'Unnamed register')}</strong><em>${esc(d.day)} · ${esc(d.room||'No room set')}</em></span><span><small>SESSION</small><strong>${esc(d.start)}–${esc(d.end)}</strong><em>${formatDuration(expected)} teaching time</em></span><span><small>BREAKS</small><strong>${d.breaks.length}</strong><em>${esc(breakText)}</em></span><span><small>LEARNERS</small><strong>${(d.learnerIds||[]).length}</strong><em>Can be changed later</em></span></div><div class="ta-actions"><button class="primary" type="button" data-save-register-wizard>${d.edit?'Save changes':'Create register'}</button>${d.edit?'<button type="button" data-delete-register-wizard>Delete register</button>':''}</div></div>`;
+    copy('Check the register','Step 6 of 6 · Ready to save');
+    content.innerHTML=`${wizardProgress()}<div class="ta-card"><div class="wizard-review"><span><small>REGISTER</small><strong>${esc(d.name||'Unnamed register')}</strong><em>${esc(d.room||'No room set')}</em></span><span><small>REPEATS</small><strong>${esc(recurrenceText(d))}</strong><em>${rec.endDate?`Until ${esc(rec.endDate)}`:rec.type==='once'?'One session':'No end date'}</em></span><span><small>SESSION</small><strong>${esc(d.start)}–${esc(d.end)}</strong><em>${formatDuration(expected)} teaching time</em></span><span><small>LEARNERS</small><strong>${(d.learnerIds||[]).length}</strong><em>${d.breaks.length} break${d.breaks.length===1?'':'s'} · ${esc(breakText)}</em></span></div><div class="ta-actions"><button class="primary" type="button" data-save-register-wizard>${d.edit?'Save changes':'Create register'}</button>${d.edit?'<button type="button" data-delete-register-wizard>Delete register</button>':''}</div></div>`;
   }
 
   function syncRegisterDraft(){
     if(!registerDraft)return;
-    if(registerWizardStep===1){registerDraft.name=$('#wizardRegisterName')?.value.trim()??registerDraft.name;registerDraft.day=$('#wizardRegisterDay')?.value||registerDraft.day;registerDraft.room=$('#wizardRegisterRoom')?.value.trim()??registerDraft.room;}
-    if(registerWizardStep===2){registerDraft.start=$('#wizardRegisterStart')?.value||registerDraft.start;registerDraft.end=$('#wizardRegisterEnd')?.value||registerDraft.end;}
-    if(registerWizardStep===3){registerDraft.breaks=registerDraft.breaks.map((b,i)=>({...b,start:$(`[data-wizard-break-start="${i}"]`)?.value||b.start,end:$(`[data-wizard-break-end="${i}"]`)?.value||b.end}));}
-    if(registerWizardStep===4){registerDraft.learnerIds=$$('[data-wizard-learner]:checked',content).map(x=>x.value);}
+    if(registerWizardStep===1){registerDraft.name=$('#wizardRegisterName')?.value.trim()??registerDraft.name;registerDraft.room=$('#wizardRegisterRoom')?.value.trim()??registerDraft.room;}
+    if(registerWizardStep===2){
+      const type=$('#wizardRecurrenceType')?.value||'weekly';
+      if(type==='once'){
+        const onceDate=$('#wizardOnceDate')?.value||'';
+        registerDraft.recurrence={type:'once',interval:1,weekdays:[],monthDays:[],startDate:onceDate,endDate:onceDate,onceDate,anchorDate:onceDate};
+        registerDraft.day=onceDate?weekdayName(dateFromKey(onceDate)):registerDraft.day;
+      }else{
+        const startDate=$('#wizardRepeatStartDate')?.value||'',endDate=$('#wizardRepeatEndDate')?.value||'',interval=boundedInt($('#wizardRepeatInterval')?.value,1,12,1);
+        const weekdays=type==='weekly'?$$('[data-wizard-weekday]:checked',content).map(x=>x.value):[];
+        const monthDays=type==='monthly'?$$('[data-wizard-month-day]:checked',content).map(x=>Number(x.value)):[];
+        registerDraft.recurrence={type,interval,weekdays,monthDays,startDate,endDate,onceDate:'',anchorDate:startDate};
+        registerDraft.day=type==='weekly'?(weekdays[0]||'Monday'):(monthDays[0]?`Day ${monthDays[0]}`:'Monthly');
+      }
+    }
+    if(registerWizardStep===3){registerDraft.start=$('#wizardRegisterStart')?.value||registerDraft.start;registerDraft.end=$('#wizardRegisterEnd')?.value||registerDraft.end;}
+    if(registerWizardStep===4){registerDraft.breaks=registerDraft.breaks.map((b,i)=>({...b,start:$(`[data-wizard-break-start="${i}"]`)?.value||b.start,end:$(`[data-wizard-break-end="${i}"]`)?.value||b.end}));}
+    if(registerWizardStep===5){registerDraft.learnerIds=$$('[data-wizard-learner]:checked',content).map(x=>x.value);}
   }
 
   function validateWizardStep(){
     syncRegisterDraft();const d=registerDraft;if(!d)return false;
-    if(registerWizardStep===1&& !d.name){toast('Add a register name');$('#wizardRegisterName')?.focus();return false;}
-    if(registerWizardStep===2){const s=localMs(todayKey(),d.start),e=localMs(todayKey(),d.end);if(e<=s){toast('Finish time must be after the start time');return false;}}
-    if(registerWizardStep===3){
+    if(registerWizardStep===1&&!d.name){toast('Add a register name');$('#wizardRegisterName')?.focus();return false;}
+    if(registerWizardStep===2){
+      const r=normaliseRegisterRecurrence(d);
+      if(r.type==='once'&&!r.onceDate){toast('Choose the register date');return false;}
+      if(r.type!=='once'&&!r.startDate){toast('Choose when the recurrence starts');return false;}
+      if(r.endDate&&r.startDate&&r.endDate<r.startDate){toast('End date must be after the start date');return false;}
+      if(r.type==='weekly'&&!r.weekdays.length){toast('Choose at least one day of the week');return false;}
+      if(r.type==='monthly'&&!r.monthDays.length){toast('Choose at least one day of the month');return false;}
+      d.recurrence=r;
+    }
+    if(registerWizardStep===3){const s=localMs(todayKey(),d.start),e=localMs(todayKey(),d.end);if(e<=s){toast('Finish time must be after the start time');return false;}}
+    if(registerWizardStep===4){
       const bounds=sessionBounds(d,todayKey());
       for(const b of d.breaks){const s=localMs(todayKey(),b.start),e=localMs(todayKey(),b.end);if(!b.start||!b.end||e<=s){toast('Check each break start and finish time');return false;}if(s<bounds.start||e>bounds.end){toast('Breaks must be inside the session times');return false;}}
       const ordered=[...d.breaks].sort((a,b)=>a.start.localeCompare(b.start));for(let i=1;i<ordered.length;i++){if(ordered[i].start<ordered[i-1].end){toast('Break times cannot overlap');return false;}}
@@ -697,7 +846,8 @@
 
   function saveRegisterWizard(){
     syncRegisterDraft();if(!registerDraft?.name)return;
-    const values={name:registerDraft.name,day:registerDraft.day,room:registerDraft.room,start:registerDraft.start,end:registerDraft.end,breaks:normaliseBreaks(registerDraft.breaks),archived:false};
+    const recurrence=normaliseRegisterRecurrence(registerDraft);
+    const values={name:registerDraft.name,day:registerDraft.day,room:registerDraft.room,start:registerDraft.start,end:registerDraft.end,breaks:normaliseBreaks(registerDraft.breaks),recurrence,classStartDate:recurrence.startDate||recurrence.onceDate||'',classEndDate:recurrence.endDate||recurrence.onceDate||'',archived:false};
     const learnerRows=(registerDraft.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).map(clone);
     if(registerDraft.edit){const reg=state.classes.find(c=>c.id===registerDraft.id);if(!reg)return;Object.assign(reg,values,{learners:learnerRows});state.activeClassId=reg.id;}
     else{const reg={id:uid(),...values,learners:learnerRows};state.classes.push(reg);state.activeClassId=reg.id;}
@@ -723,7 +873,7 @@
   function toggleTimer(learnerId){
     const reg=activeRegister();if(!reg)return;const key=todayKey(),t=sessionTimingState(reg,key),now=Date.now();
     if(completedSession(reg,key)){toast('This session is already complete');return;}
-    if(t.code==='not-today'){toast(`This register is scheduled for ${reg.day}`);return;}
+    if(t.code==='not-today'){toast(`Not scheduled today · ${recurrenceText(reg)}`);return;}
     if(t.code==='outside-dates'){toast('This register is outside the class dates');return;}
     if(t.code==='early'){toast(`Timers open at ${formatTime(t.b.open)}`);return;}
     if(t.code==='ended'){finaliseSession(reg,key,true,t.b.end);save();toast('Session ended and attendance saved');return;}
@@ -1117,6 +1267,16 @@
       if(q.type==='true-false'){q.answers=['True','False','',''];q.correct=Math.min(q.correct,1);}
       const box=$('#quizAnswerEditor');if(box)box.innerHTML=renderQuizAnswerEditor(q);
     }
+    if(event.target.id==='classRecurrenceType'){
+      const monthly=event.target.value==='monthly';
+      const weekly=$('#classWeeklyPanel'),month=$('#classMonthlyPanel'),unit=$('#classRepeatUnit');
+      if(weekly)weekly.hidden=monthly;if(month)month.hidden=!monthly;if(unit)unit.textContent=monthly?'month(s)':'week(s)';
+    }
+    if(event.target.id==='wizardRecurrenceType'){
+      const type=event.target.value,once=type==='once',weekly=type==='weekly',monthly=type==='monthly';
+      const oncePanel=$('#wizardOncePanel'),recurring=$('#wizardRecurringPanel'),weekPanel=$('#wizardWeeklyPanel'),monthPanel=$('#wizardMonthlyPanel'),unit=$('#wizardRepeatUnit');
+      if(oncePanel)oncePanel.hidden=!once;if(recurring)recurring.hidden=once;if(weekPanel)weekPanel.hidden=!weekly;if(monthPanel)monthPanel.hidden=!monthly;if(unit)unit.textContent=monthly?'month(s)':'week(s)';
+    }
   });
   content.addEventListener('click',event=>{
     const b=event.target.closest('button');if(!b)return;
@@ -1130,7 +1290,7 @@
     if(b.hasAttribute('data-save-class'))return saveClassWizard();
     if(b.hasAttribute('data-delete-class'))return deleteTeachingClass(classDraft?.id);
 
-    if(b.hasAttribute('data-register-wizard-next')){if(validateWizardStep()){registerWizardStep=Math.min(5,registerWizardStep+1);renderRegisterWizard();}return;}
+    if(b.hasAttribute('data-register-wizard-next')){if(validateWizardStep()){registerWizardStep=Math.min(6,registerWizardStep+1);renderRegisterWizard();}return;}
     if(b.hasAttribute('data-add-wizard-break')){syncRegisterDraft();registerDraft.breaks.push({id:uid(),label:`Break ${registerDraft.breaks.length+1}`,start:'',end:''});renderRegisterWizard();return;}
     if(b.dataset.removeWizardBreak!==undefined){syncRegisterDraft();registerDraft.breaks.splice(Number(b.dataset.removeWizardBreak),1);renderRegisterWizard();return;}
     if(b.hasAttribute('data-save-register-wizard'))return saveRegisterWizard();
