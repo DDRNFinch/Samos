@@ -1,4 +1,4 @@
-const BUILD='0.14.0';
+const BUILD='0.15.0';
 const CACHE=`samos-${BUILD}`;
 const ASSETS=[
   './','./index.html',

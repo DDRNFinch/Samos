@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD = window.SAMOS_BUILD || '0.14.0';
+  const BUILD = window.SAMOS_BUILD || '0.15.0';
   const STORE_KEY = 'samos.classroom.data';
   const LEGACY_KEYS = ['samos.classroom.v3','samos.classroom.v2','samos.classroom.v1'];
   const SHELL_BUILD_KEY = 'samos.shell.build';
@@ -24,6 +24,7 @@
   const defaultState = {
     settings:{teacherName:'',centre:''},
     learners:[],
+    teachingClasses:[],
     classes:[],
     activeClassId:null,
     attendance:{},
@@ -32,9 +33,11 @@
     courses:[],
     view:'home',
     selectedLearnerId:null,
+    selectedTeachingClassId:null,
     selectedResourceId:null,
     selectedCourseId:null,
-    resourceFilter:'all'
+    resourceFilter:'all',
+    resourceCourseFilter:''
   };
 
   let state = loadState();
@@ -44,6 +47,8 @@
   let installPrompt = null;
   let registerDraft = null;
   let registerWizardStep = 1;
+  let classDraft = null;
+  let classWizardStep = 1;
   let ticker = 0;
   let quizDraft=null,quizWizardStep=1,quizEditIndex=null;
   let presentationDraft=null,presentationWizardStep=1,presentationEditIndex=null,presentationPendingImage=null;
@@ -82,14 +87,40 @@
     return (Array.isArray(list)?list:[]).map((b,i)=>({id:b.id||uid(),label:b.label||`Break ${i+1}`,start:String(b.start||''),end:String(b.end||'')})).filter(b=>b.start&&b.end);
   }
 
+  function normaliseTeachingSchedule(list){
+    const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    return (Array.isArray(list)?list:[]).map(x=>({
+      day:days.includes(x?.day)?x.day:'Monday',
+      start:String(x?.start||'09:00'),
+      end:String(x?.end||'16:00')
+    })).filter((x,i,a)=>a.findIndex(y=>y.day===x.day)===i);
+  }
+
+  function normaliseTeachingClasses(list){
+    return (Array.isArray(list)?list:[]).map(c=>({
+      id:c?.id||uid(),
+      name:String(c?.name||'Class').trim()||'Class',
+      room:String(c?.room||''),
+      courseId:String(c?.courseId||''),
+      startDate:String(c?.startDate||''),
+      endDate:String(c?.endDate||''),
+      schedule:normaliseTeachingSchedule(c?.schedule),
+      breaks:normaliseBreaks(c?.breaks),
+      learnerIds:Array.isArray(c?.learnerIds)?[...new Set(c.learnerIds.map(String))]:[],
+      registerIds:Array.isArray(c?.registerIds)?[...new Set(c.registerIds.map(String))]:[]
+    }));
+  }
+
   function loadState(){
     const saved=readStoredState();
     if(!saved)return clone(defaultState);
     const classes=Array.isArray(saved.classes)?saved.classes.map(c=>({...c,breaks:normaliseBreaks(c.breaks),learners:Array.isArray(c.learners)?c.learners:[]})):[];
+    const teachingClasses=normaliseTeachingClasses(saved.teachingClasses||saved.groups);
     const merged={
       ...clone(defaultState),...saved,
       settings:{...defaultState.settings,...(saved.settings||{})},
       learners:normaliseLearners(saved.learners,classes),
+      teachingClasses,
       classes,
       attendance:saved.attendance&&typeof saved.attendance==='object'?saved.attendance:{},
       history:Array.isArray(saved.history)?saved.history:[],
@@ -113,6 +144,8 @@
   }
 
   function activeRegister(){return state.classes.find(c=>c.id===state.activeClassId)||null;}
+  function teachingClass(id=state.selectedTeachingClassId){return state.teachingClasses.find(c=>c.id===id)||null;}
+  function registerDateActive(reg,key=todayKey()){return (!reg?.classStartDate||key>=reg.classStartDate)&&(!reg?.classEndDate||key<=reg.classEndDate);}
   function attendanceKey(id,key=todayKey()){return `${id}:${key}`;}
   function attendance(id,key=todayKey()){
     const k=attendanceKey(id,key);
@@ -121,11 +154,11 @@
     return state.attendance[k];
   }
   function selectUsefulRegister(){
-    const day=weekdayName();
-    const today=state.classes.find(c=>c.day===day);
+    const day=weekdayName(),key=todayKey(),usable=state.classes.filter(c=>!c.archived&&registerDateActive(c,key));
+    const today=usable.find(c=>c.day===day);
     if(today){state.activeClassId=today.id;return;}
-    if(activeRegister())return;
-    state.activeClassId=state.classes[0]?.id||null;
+    const active=activeRegister();if(active&&!active.archived&&registerDateActive(active,key))return;
+    state.activeClassId=usable[0]?.id||state.classes.find(c=>!c.archived)?.id||null;
   }
 
   function localMs(key,time){
@@ -200,6 +233,7 @@
   function sessionTimingState(reg,key=todayKey(),now=Date.now()){
     const b=sessionBounds(reg,key),isToday=key===todayKey(),scheduledDay=reg.day===weekdayName(new Date(`${key}T12:00:00`)),done=completedSession(reg,key);
     if(done)return{code:'completed',label:'Completed',done,b};
+    if(!registerDateActive(reg,key))return{code:'outside-dates',label:'Outside class dates',b};
     if(!isToday||!scheduledDay)return{code:'not-today',label:`Scheduled ${reg.day}`,b};
     if(now<b.open)return{code:'early',label:`Opens ${formatTime(b.open)}`,b};
     if(now<b.start)return{code:'open-early',label:`Open · starts ${formatTime(b.start)}`,b};
@@ -286,15 +320,22 @@
     if(changed)save(false);
   }
 
+  function classSetupPercent(tc){
+    if(!tc)return 0;let points=0;
+    if(tc.name)points+=20;if(tc.courseId)points+=20;if(tc.startDate&&tc.endDate)points+=20;if(tc.schedule?.length)points+=20;if(tc.learnerIds?.length)points+=20;
+    return points;
+  }
+
   function homeMetrics(){
-    const assigned=new Set(state.classes.flatMap(c=>(c.learners||[]).map(l=>l.id)));
+    const classAssigned=new Set(state.teachingClasses.flatMap(c=>c.learnerIds||[]));
+    const registerAssigned=new Set(state.classes.flatMap(c=>(c.learners||[]).map(l=>l.id)));
+    const assigned=new Set([...classAssigned,...registerAssigned]);
     const learners=state.learners.length?Math.round(state.learners.filter(l=>assigned.has(l.id)).length/state.learners.length*100):0;
+    const classes=state.teachingClasses.length?Math.round(state.teachingClasses.reduce((sum,c)=>sum+classSetupPercent(c),0)/state.teachingClasses.length):0;
     const attendanceValues=state.learners.map(l=>learnerAttendanceStats(l.id).percentage).filter((_,i)=>state.learners[i]?.attendance?.sessions>0);
     const registers=attendanceValues.length?Math.round(attendanceValues.reduce((a,b)=>a+b,0)/attendanceValues.length):registerStats().percent;
-    const kinds=new Set(state.resources.map(r=>r.type));
-    const resources=Math.min(100,[kinds.has('powerpoint')||kinds.has('presentation'),kinds.has('lesson-plan'),kinds.has('quiz'),kinds.has('sow')||state.courses.length].filter(Boolean).length*25);
-    const games=Math.min(100,state.resources.filter(r=>r.type==='quiz').length*20);
-    return{learners,registers,resources,games};
+    const courses=state.courses.length?Math.round(state.courses.filter(c=>c.sowId&&state.resources.some(r=>r.id===c.sowId)).length/state.courses.length*100):0;
+    return{learners,classes,registers,courses};
   }
 
   function arch(label,value,key){
@@ -308,6 +349,8 @@
     if(state.view==='home')renderHome();
     else if(state.view==='learners')renderLearnersPage();
     else if(state.view==='learner')renderLearnerProfile();
+    else if(state.view==='classes')renderTeachingClassesPage();
+    else if(state.view==='class')renderTeachingClassDetail();
     else if(state.view==='registers')renderRegistersPage();
     else if(state.view==='resources')renderResourcesPage();
     else if(state.view==='resource')renderResourceDetail();
@@ -319,7 +362,7 @@
 
   function renderHome(){
     state.view='home';setHomeMode(true);const m=homeMetrics();
-    app.innerHTML=`<section class="assessor-value-home" aria-label="Classroom overview"><div class="vh-arches">${arch('LEARNERS',m.learners,'learners')}${arch('REGISTERS',m.registers,'registers')}${arch('RESOURCES',m.resources,'resources')}${arch('GAMES',m.games,'games')}</div></section>`;
+    app.innerHTML=`<section class="assessor-value-home" aria-label="Classroom overview"><div class="vh-arches">${arch('LEARNERS',m.learners,'learners')}${arch('CLASSES',m.classes,'classes')}${arch('REGISTERS',m.registers,'registers')}${arch('COURSES',m.courses,'courses')}</div></section>`;
   }
 
   function breadcrumb(title,sub='CLASSROOM'){return `<div class="staff-page-head"><button class="staff-back" type="button" data-home-back>←</button><div><small>${esc(sub)}</small><h1>${esc(title)}</h1></div></div>`;}
@@ -336,36 +379,46 @@
 
   function renderLearnerProfile(){
     setHomeMode(false);const l=state.learners.find(x=>x.id===state.selectedLearnerId);if(!l){state.view='learners';return renderLearnersPage();}
-    const a=learnerAttendanceStats(l.id),assigned=state.classes.filter(c=>(c.learners||[]).some(x=>x.id===l.id));
-    app.innerHTML=`${breadcrumb(l.name,'LEARNER PROFILE')}<section class="learner-hero samos-attendance-hero"><div><small>ATTENDANCE</small><strong>${a.percentage}%</strong><span>${formatDuration(a.attendedMs)} attended · ${formatDuration(a.expectedMs)} scheduled</span></div></section><div class="profile-attendance-grid"><div><strong>${a.sessions}</strong><span>Sessions</span></div><div><strong>${formatDuration(a.attendedMs)}</strong><span>Attended</span></div><div><strong>${formatDuration(a.expectedMs)}</strong><span>Scheduled</span></div></div><section class="staff-card"><div class="samos-section-head"><h2>Registers</h2><small>${assigned.length} assigned</small></div>${assigned.length?assigned.map(r=>`<button class="samos-row" type="button" data-open-register="${attr(r.id)}"><span><strong>${esc(r.name)}</strong><small>${esc(r.day)} · ${esc(r.start)}–${esc(r.end)}</small><em>${formatDuration(scheduledMs(r))} teaching time</em></span><b>›</b></button>`).join(''):'<div class="samos-empty"><strong>No registers assigned</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Attendance history</h2><small>${a.sessions} session${a.sessions===1?'':'s'}</small></div>${learnerHistoryHtml(l.id)}</section>`;
+    const a=learnerAttendanceStats(l.id),assigned=state.classes.filter(c=>(c.learners||[]).some(x=>x.id===l.id)),groups=state.teachingClasses.filter(c=>(c.learnerIds||[]).includes(l.id));
+    app.innerHTML=`${breadcrumb(l.name,'LEARNER PROFILE')}<section class="learner-hero samos-attendance-hero"><div><small>ATTENDANCE</small><strong>${a.percentage}%</strong><span>${formatDuration(a.attendedMs)} / ${formatDuration(a.expectedMs)}</span></div></section><div class="profile-attendance-grid"><div><strong>${a.sessions}</strong><span>Sessions</span></div><div><strong>${formatDuration(a.attendedMs)}</strong><span>Attended</span></div><div><strong>${formatDuration(a.expectedMs)}</strong><span>Scheduled</span></div></div><section class="staff-card"><div class="samos-section-head"><h2>Classes</h2><small>${groups.length}</small></div>${groups.length?groups.map(c=>`<button class="samos-row" type="button" data-open-teaching-class="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc(classDaysText(c))}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty compact-empty"><strong>No class assigned</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Attendance history</h2><small>${a.sessions}</small></div>${learnerHistoryHtml(l.id)}</section><div class="danger-zone"><button type="button" data-delete-learner="${attr(l.id)}">Delete learner</button></div>`;
+  }
+
+  function deleteLearner(id){
+    const l=state.learners.find(x=>x.id===id);if(!l)return;
+    if(!confirm(`Delete ${l.name}? This removes the learner from classes, registers and attendance records.`))return;
+    state.learners=state.learners.filter(x=>x.id!==id);
+    state.teachingClasses.forEach(c=>{c.learnerIds=(c.learnerIds||[]).filter(x=>x!==id);});
+    state.classes.forEach(r=>{r.learners=(r.learners||[]).filter(x=>x.id!==id);});
+    for(const a of Object.values(state.attendance||{}))if(a&&typeof a==='object')delete a[id];
+    for(const h of state.history||[]){if(h?.data)delete h.data[id];const vals=Object.values(h?.data||{});h.total=vals.length;h.present=vals.filter(r=>(Number(r?.attendedMs)||Number(r?.attendedMinutes)*60000)>0||r?.status==='present'||r?.status==='late').length;}
+    refreshLearnerAttendanceSummaries(state);state.selectedLearnerId=null;state.view='learners';save();toast('Learner deleted');
   }
 
   function renderRegistersPage(){
     setHomeMode(false);selectUsefulRegister();const reg=activeRegister();
-    const chips=state.classes.map(c=>`<button class="${c.id===state.activeClassId?'active':''}" type="button" data-select-register="${attr(c.id)}">${esc(c.name)}</button>`).join('');
-    app.innerHTML=`${breadcrumb('Registers','ATTENDANCE')}<div class="inline-actions"><button class="blue-button" type="button" data-new-register>+ Register</button><button class="soft-button" type="button" data-register-list>Register list</button></div>${state.classes.length?`<div class="segmented samos-register-picker">${chips}</div>`:''}<div id="registerWorkspace"></div>`;
+    const visible=state.classes.filter(c=>!c.archived),chips=visible.map(c=>`<button class="${c.id===state.activeClassId?'active':''}" type="button" data-select-register="${attr(c.id)}">${esc(c.teachingClassId?`${c.name} · ${c.day.slice(0,3)}`:c.name)}</button>`).join('');
+    app.innerHTML=`${breadcrumb('Registers','ATTENDANCE')}<div class="register-top-actions"><button class="blue-button" type="button" data-new-register>+ New</button><button class="soft-button" type="button" data-register-list>All registers</button></div>${visible.length?`<div class="segmented samos-register-picker">${chips}</div>`:''}<div id="registerWorkspace"></div>`;
     renderRegisterWorkspace(reg);
   }
 
   function sessionBanner(reg,key=todayKey()){
-    const t=sessionTimingState(reg,key),b=t.b,breakText=breakWindows(reg,key).map(x=>`${x.start}–${x.end}`).join(' · ');
-    return `<div class="session-banner ${t.code}"><span><small>SESSION</small><strong>${esc(t.label)}</strong><em>Timers open ${formatTime(b.open)} · finish ${formatTime(b.end)}</em></span><span><small>TEACHING TIME</small><strong>${formatDuration(scheduledMs(reg,key))}</strong><em>${breakText?`Breaks ${esc(breakText)}`:'No breaks'}</em></span></div>`;
+    const t=sessionTimingState(reg,key);return `<div class="register-state ${t.code}"><i></i><strong>${esc(t.label)}</strong></div>`;
   }
 
   function completedRecord(reg,l,key){return completedSession(reg,key)?.data?.[l.id]||null;}
 
   function timerRow(reg,l,key=todayKey()){
     const done=completedSession(reg,key),a=attendance(reg.id,key),live=a[l.id]||{},record=done?.data?.[l.id]||live,t=sessionTimingState(reg,key),actual=done?legacyActualMs(done,record,Number(record.expectedMs)||scheduledMs(reg,key)):recordAttendedMs(record,reg,key),running=Boolean(!done&&record.runningSince),inBreak=running&&Boolean(currentBreak(reg,key));
-    const disabled=Boolean(done)||!['open-early','live','break'].includes(t.code);
-    const status=done?`${Math.min(100,Math.round(actual/(Number(record.expectedMs)||scheduledMs(reg,key)||1)*100))}% attendance`:running?(inBreak?'Break · paused automatically':'Timing now'):(actual>0?'Paused':'Not started');
-    return `<div class="attendance-row timed-row" data-attendance-learner="${attr(l.id)}"><div class="attendance-name"><strong>${esc(l.name)}</strong><small>${esc(l.externalId||'No learner ID')}</small><div class="timer-readout"><b>${formatDuration(actual,true)}</b><span>${esc(status)}</span></div></div><button class="attendance-timer ${running?'running':''} ${done?'complete':''}" type="button" data-toggle-timer="${attr(l.id)}" ${disabled?'disabled':''} aria-label="${running?'Stop':'Start'} timer for ${attr(l.name)}"><span></span></button></div>`;
+    const disabled=Boolean(done)||!['open-early','live','break'].includes(t.code),pct=done?Math.min(100,Math.round(actual/(Number(record.expectedMs)||scheduledMs(reg,key)||1)*100)):null;
+    const status=done?`${pct}%`:running?(inBreak?'Break':'Live'):(actual>0?'Paused':'');
+    return `<div class="attendance-row timed-row compact-timer-row" data-attendance-learner="${attr(l.id)}"><div class="attendance-name"><strong>${esc(l.name)}</strong><div class="timer-readout"><b>${formatDuration(actual,true)}</b>${status?`<span>${esc(status)}</span>`:''}</div></div><button class="attendance-timer ${running?'running':''} ${done?'complete':''}" type="button" data-toggle-timer="${attr(l.id)}" ${disabled?'disabled':''} aria-label="${running?'Stop':'Start'} timer for ${attr(l.name)}"><span></span></button></div>`;
   }
 
   function renderRegisterWorkspace(reg){
     const host=$('#registerWorkspace');if(!host)return;
-    if(!reg){host.innerHTML='<section class="staff-card"><div class="empty-state"><strong>No registers yet</strong><p>Create a register and Samos will take you through each step.</p></div></section>';return;}
-    const key=todayKey(),done=completedSession(reg,key),s=registerStats(reg,key),timing=sessionTimingState(reg,key),canFinish=!done&&['open-early','live','break','ended'].includes(timing.code);
-    host.innerHTML=`${sessionBanner(reg,key)}<section class="staff-card"><div class="section-title"><div><h2>${esc(reg.name)}</h2><small>${esc([reg.day,`${reg.start||'09:00'}–${reg.end||'16:00'}`,reg.room].filter(Boolean).join(' · '))}</small></div><span class="status-pill">${esc(prettyDate())}</span></div><div class="register-summary timed-summary"><div><strong>${s.total}</strong><span>Learners</span></div><div><strong>${s.running}</strong><span>Timing</span></div><div><strong>${s.attended}</strong><span>Attended</span></div><div><strong>${formatDuration(scheduledMs(reg,key))}</strong><span>Session</span></div></div><div class="inline-actions"><button class="soft-button" type="button" data-edit-register>Edit register</button><button class="blue-button" type="button" data-assign-learners>+ Learners</button></div><div class="attendance-list">${(reg.learners||[]).length?(reg.learners||[]).map(l=>timerRow(reg,l,key)).join(''):'<div class="empty-state"><strong>No learners on this register</strong><p>Add learners from your learner directory.</p></div>'}</div>${(reg.learners||[]).length&&canFinish?'<button class="soft-button full finish-session" type="button" data-finish-register>Finish session now</button>':''}${done?'<div class="session-complete-note"><strong>Session saved</strong><span>Attendance hours have been added to each learner profile.</span></div>':''}</section><section class="staff-card"><div class="samos-section-head"><h2>Recent completed registers</h2><small>${state.history.filter(h=>h.classId===reg.id).length} saved</small></div>${historyHtml(reg.id)}</section>`;
+    if(!reg){host.innerHTML='<section class="staff-card"><div class="empty-state"><strong>No registers yet</strong><p>Create a class or a standalone register.</p></div></section>';return;}
+    const key=todayKey(),done=completedSession(reg,key),timing=sessionTimingState(reg,key),canFinish=!done&&['open-early','live','break','ended'].includes(timing.code),breakText=breakWindows(reg,key).map(x=>`${x.start}–${x.end}`).join(' · '),linkedClass=state.teachingClasses.find(c=>c.id===reg.teachingClassId);
+    host.innerHTML=`<section class="staff-card clean-register-card"><div class="clean-register-head"><div><h2>${esc(reg.name)}</h2><small>${esc([reg.day,`${reg.start||'09:00'}–${reg.end||'16:00'}`,reg.room].filter(Boolean).join(' · '))}</small></div>${sessionBanner(reg,key)}</div><div class="register-compact-meta"><span>${formatDuration(scheduledMs(reg,key))}</span>${breakText?`<span>Break ${esc(breakText)}</span>`:''}<span>${(reg.learners||[]).length} learners</span></div><div class="attendance-list">${(reg.learners||[]).length?(reg.learners||[]).map(l=>timerRow(reg,l,key)).join(''):'<div class="empty-state compact-empty"><strong>No learners</strong></div>'}</div><div class="register-bottom-actions">${linkedClass?`<button class="soft-button" type="button" data-edit-class="${attr(linkedClass.id)}">Edit class</button>`:'<button class="soft-button" type="button" data-edit-register>Edit</button>'}<button class="soft-button" type="button" data-assign-learners>+ Learner</button>${(reg.learners||[]).length&&canFinish?'<button class="blue-button" type="button" data-finish-register>Finish</button>':''}</div>${done?'<div class="session-complete-note"><strong>Saved</strong></div>':''}</section>`;
   }
 
   function historyHtml(classId=null){
@@ -375,13 +428,35 @@
 
   function renderRegisterList(){
     setHomeMode(false);state.view='registers';
-    app.innerHTML=`${breadcrumb('Register list','ATTENDANCE')}<button class="blue-button full" type="button" data-new-register>+ Create register</button><section class="staff-card"><div class="samos-section-head"><h2>Registers</h2><small>${state.classes.length} saved</small></div>${state.classes.length?state.classes.map(c=>`<button class="samos-row" type="button" data-open-register="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc([c.day,`${c.start||'09:00'}–${c.end||'16:00'}`,c.room].filter(Boolean).join(' · '))}</small><em>${(c.learners||[]).length} learner${(c.learners||[]).length===1?'':'s'} · ${formatDuration(scheduledMs(c))} teaching</em></span><b>›</b></button>`).join(''):'<div class="samos-empty"><strong>No registers yet</strong><p>Create your first register.</p></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Completed registers</h2><small>${state.history.length} saved</small></div>${historyHtml()}</section>`;
+    app.innerHTML=`${breadcrumb('Register list','ATTENDANCE')}<button class="blue-button full" type="button" data-new-register>+ Create register</button><section class="staff-card"><div class="samos-section-head"><h2>Registers</h2><small>${state.classes.filter(c=>!c.archived).length}</small></div>${state.classes.filter(c=>!c.archived).length?state.classes.filter(c=>!c.archived).map(c=>`<button class="samos-row" type="button" data-open-register="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc([c.day,`${c.start||'09:00'}–${c.end||'16:00'}`].join(' · '))}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty"><strong>No registers yet</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>History</h2><small>${state.history.length}</small></div>${historyHtml()}</section>`;
+  }
+
+
+  function classDaysText(c){return (c?.schedule||[]).map(x=>x.day.slice(0,3)).join(' · ')||'No days set';}
+  function classDateText(c){if(c?.startDate&&c?.endDate)return `${prettyDateKey(c.startDate)} – ${prettyDateKey(c.endDate)}`;return 'Dates not set';}
+  function classRegisterRows(c){return state.classes.filter(r=>r.teachingClassId===c.id&&!r.archived);}
+  function classAttendanceStats(c){
+    const ids=new Set(classRegisterRows(c).map(r=>r.id));let expected=0,actual=0,sessions=0;
+    for(const h of state.history||[]){if(!ids.has(h.classId))continue;sessions++;for(const rec of Object.values(h.data||{})){const e=Number(rec?.expectedMs)||Number(h.scheduledMs)||0;expected+=e;actual+=legacyActualMs(h,rec,e);}}
+    return{sessions,expectedMs:expected,attendedMs:actual,percentage:expected?Math.min(100,Math.round(actual/expected*100)):0};
+  }
+
+  function renderTeachingClassesPage(){
+    setHomeMode(false);const rows=[...state.teachingClasses].sort((a,b)=>a.name.localeCompare(b.name));
+    app.innerHTML=`${breadcrumb('Classes','CLASSROOM')}<button class="blue-button full" type="button" data-new-class>+ Create class</button><section class="staff-card"><div class="samos-section-head"><h2>Classes</h2><small>${rows.length}</small></div>${rows.length?rows.map(c=>{const course=state.courses.find(x=>x.id===c.courseId),a=classAttendanceStats(c);return `<button class="samos-row class-list-row" type="button" data-open-teaching-class="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc(course?.name||'No course')} · ${esc(classDaysText(c))}</small><em>${(c.learnerIds||[]).length} learners · ${a.percentage}% attendance</em></span><b>›</b></button>`}).join(''):'<div class="samos-empty"><strong>No classes yet</strong><p>Create a class and Samos will build its weekly registers.</p></div>'}</section>`;
+  }
+
+  function renderTeachingClassDetail(){
+    setHomeMode(false);const c=teachingClass();if(!c){state.view='classes';return renderTeachingClassesPage();}
+    const course=state.courses.find(x=>x.id===c.courseId),regs=classRegisterRows(c),learners=(c.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name)),a=classAttendanceStats(c);
+    const courseResources=course?state.resources.filter(r=>r.courseId===course.id):[],sow=course?state.resources.find(r=>r.id===course.sowId):null,lessons=courseResources.filter(r=>r.type==='lesson-plan'),presentations=courseResources.filter(r=>r.type==='presentation'),quizzes=courseResources.filter(r=>r.type==='quiz');
+    app.innerHTML=`${breadcrumb(c.name,'CLASS')}<section class="staff-card class-overview"><div class="class-title-line"><div><strong>${esc(course?.name||'No course linked')}</strong><small>${esc(classDateText(c))}</small><span>${esc(classDaysText(c))}</span></div><b>${a.percentage}%</b></div><div class="class-summary-grid"><div><strong>${learners.length}</strong><span>Learners</span></div><div><strong>${c.schedule?.length||0}</strong><span>Days</span></div><div><strong>${regs.length}</strong><span>Registers</span></div><div><strong>${a.percentage}%</strong><span>Attendance</span></div></div><button class="soft-button full" type="button" data-edit-class="${attr(c.id)}">Edit class</button></section><section class="staff-card"><div class="samos-section-head"><h2>Learners</h2><small>${learners.length}</small></div>${learners.length?learners.map(l=>`<div class="class-learner-row"><button type="button" data-learner-info="${attr(l.id)}"><strong>${esc(l.name)}</strong><small>${learnerAttendanceStats(l.id).percentage}% attendance</small></button><button type="button" class="danger-text" data-remove-class-learner="${attr(l.id)}">Remove</button></div>`).join(''):'<div class="samos-empty compact-empty"><strong>No learners</strong></div>'}<button class="soft-button full" type="button" data-manage-class-learners="${attr(c.id)}">Manage learners</button></section><section class="staff-card"><div class="samos-section-head"><h2>Weekly registers</h2><small>${regs.length}</small></div>${regs.length?regs.map(r=>`<button class="samos-row" type="button" data-open-register="${attr(r.id)}"><span><strong>${esc(r.day)}</strong><small>${esc(r.start)}–${esc(r.end)} · ${formatDuration(scheduledMs(r))}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty compact-empty"><strong>No register days</strong></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Course teaching</h2><small>${course?'Linked':'Not linked'}</small></div>${course?`<button class="samos-row" type="button" data-open-course="${attr(course.id)}"><span><strong>${esc(course.name)}</strong><small>${esc([course.code,course.version].filter(Boolean).join(' · ')||'Official course')}</small></span><b>›</b></button><div class="class-resource-grid">${sow?`<button type="button" data-view-resource="${attr(sow.id)}"><strong>SOW</strong><span>Open</span></button>`:'<div><strong>SOW</strong><span>Not created</span></div>'}<button type="button" data-class-resource-filter="lesson-plan"><strong>${lessons.length}</strong><span>Lesson plans</span></button><button type="button" data-class-resource-filter="presentation"><strong>${presentations.length}</strong><span>Slides</span></button><button type="button" data-class-resource-filter="quiz"><strong>${quizzes.length}</strong><span>Quizzes</span></button></div>`:'<div class="samos-empty compact-empty"><strong>No course linked</strong><p>Edit this class to choose an official course.</p></div>'}</section>`;
   }
 
   function renderResourcesPage(){
-    setHomeMode(false);const filter=state.resourceFilter||'all';
-    const rows=state.resources.filter(r=>filter==='all'||(filter==='presentation'?(r.type==='presentation'||r.type==='powerpoint'):r.type===filter)).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
-    app.innerHTML=`${breadcrumb('Resources','TEACHING')}<div class="inline-actions"><button class="blue-button" type="button" data-create-resource>+ Create</button><button class="soft-button" type="button" data-import-samos>Import / Upload</button></div><div class="resource-filter"><button class="${filter==='all'?'active':''}" data-resource-filter="all">All</button><button class="${filter==='presentation'?'active':''}" data-resource-filter="presentation">Presentations</button><button class="${filter==='lesson-plan'?'active':''}" data-resource-filter="lesson-plan">Lesson plans</button><button class="${filter==='quiz'?'active':''}" data-resource-filter="quiz">Quizzes</button><button class="${filter==='sow'?'active':''}" data-resource-filter="sow">SOW</button><button class="${filter==='other'?'active':''}" data-resource-filter="other">Other</button></div><section class="staff-card"><div class="samos-section-head"><h2>Resource library</h2><small>${rows.length} shown</small></div>${rows.length?rows.map(resourceRow).join(''):'<div class="samos-empty"><strong>No resources here yet</strong><p>Create a lesson, presentation or quiz, or import a Samos resource.</p></div>'}</section><section class="staff-card"><div class="samos-section-head"><h2>Official courses</h2><small>${state.courses.length} uploaded</small></div>${state.courses.length?state.courses.slice(0,5).map(c=>`<button class="samos-row" type="button" data-open-course="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc([c.code,c.version].filter(Boolean).join(' · ')||'Course')}</small><em>${c.ksbs?.length||0} KSBs · ${c.plan?.totalSessions||0} planned sessions</em></span><b>›</b></button>`).join(''):'<div class="samos-empty compact-empty"><strong>No official course uploaded</strong><p>Upload KSB wording and Samos can build the SOW and lesson structure.</p></div>'}<button class="soft-button full" type="button" data-add-course>+ Upload official course</button></section>`;
+    setHomeMode(false);const filter=state.resourceFilter||'all',courseFilter=state.resourceCourseFilter||'',linkedCourse=state.courses.find(c=>c.id===courseFilter)||null;
+    const rows=state.resources.filter(r=>(!courseFilter||r.courseId===courseFilter)&&(filter==='all'||(filter==='presentation'?(r.type==='presentation'||r.type==='powerpoint'):r.type===filter))).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+    app.innerHTML=`${breadcrumb(linkedCourse?'Course resources':'Resources','TEACHING')}${linkedCourse?`<div class="course-filter-banner"><span><small>COURSE</small><strong>${esc(linkedCourse.name)}</strong></span><button type="button" data-clear-course-filter>All resources</button></div>`:''}<div class="inline-actions"><button class="blue-button" type="button" data-create-resource>+ Create</button><button class="soft-button" type="button" data-import-samos>Import / Upload</button></div><div class="resource-filter"><button class="${filter==='all'?'active':''}" data-resource-filter="all">All</button><button class="${filter==='presentation'?'active':''}" data-resource-filter="presentation">Presentations</button><button class="${filter==='lesson-plan'?'active':''}" data-resource-filter="lesson-plan">Lesson plans</button><button class="${filter==='quiz'?'active':''}" data-resource-filter="quiz">Quizzes</button><button class="${filter==='sow'?'active':''}" data-resource-filter="sow">SOW</button><button class="${filter==='other'?'active':''}" data-resource-filter="other">Other</button></div><section class="staff-card"><div class="samos-section-head"><h2>${linkedCourse?'Course library':'Resource library'}</h2><small>${rows.length}</small></div>${rows.length?rows.map(resourceRow).join(''):'<div class="samos-empty"><strong>No resources here yet</strong><p>Create a lesson, presentation or quiz, or import a Samos resource.</p></div>'}</section>${linkedCourse?'':`<section class="staff-card"><div class="samos-section-head"><h2>Official courses</h2><small>${state.courses.length}</small></div>${state.courses.length?state.courses.slice(0,5).map(c=>`<button class="samos-row" type="button" data-open-course="${attr(c.id)}"><span><strong>${esc(c.name)}</strong><small>${esc([c.code,c.version].filter(Boolean).join(' · ')||'Course')}</small></span><b>›</b></button>`).join(''):'<div class="samos-empty compact-empty"><strong>No official course uploaded</strong></div>'}<button class="soft-button full" type="button" data-add-course>+ Upload official course</button></section>`}`;
   }
 
   function resourceLabel(r){return r.type==='presentation'?'Samos presentation':r.type==='powerpoint'?'PowerPoint':r.type==='lesson-plan'?'Lesson plan':r.type==='quiz'?'Quiz':r.type==='sow'?'Scheme of Work':'Resource';}
@@ -417,10 +492,15 @@
   function closeAssistant(){
     if(!overlay.classList.contains('open')){overlay.classList.remove('samos-closing');document.body.classList.remove('evia-open');window.EviaAnimations?.setBusy?.(false);assistantRoute='main';return;}
     if(assistantCloseFrame){cancelAnimationFrame(assistantCloseFrame);assistantCloseFrame=0;}
-    window.EviaAnimations?.setBusy?.(true);overlay.classList.add('samos-closing');overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');document.body.classList.remove('evia-open');assistantRoute='main';registerDraft=null;registerWizardStep=1;quizDraft=null;quizWizardStep=1;quizEditIndex=null;presentationDraft=null;presentationWizardStep=1;presentationEditIndex=null;presentationPendingImage=null;courseDraft=null;courseWizardStep=1;lessonDraft=null;lessonWizardStep=1;
+    window.EviaAnimations?.setBusy?.(true);overlay.classList.add('samos-closing');overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');document.body.classList.remove('evia-open');assistantRoute='main';registerDraft=null;registerWizardStep=1;classDraft=null;classWizardStep=1;quizDraft=null;quizWizardStep=1;quizEditIndex=null;presentationDraft=null;presentationWizardStep=1;presentationEditIndex=null;presentationPendingImage=null;courseDraft=null;courseWizardStep=1;lessonDraft=null;lessonWizardStep=1;
     assistantCloseFrame=requestAnimationFrame(()=>{assistantCloseFrame=0;overlay.classList.remove('samos-closing');window.EviaAnimations?.setBusy?.(false);});
   }
   function assistantBack(){
+    if(assistantRoute==='class:wizard'){
+      syncClassDraft();
+      if(classWizardStep>1){classWizardStep--;return renderClassWizard();}
+      classDraft=null;return assistantClasses();
+    }
     if(assistantRoute==='register:wizard'){
       syncRegisterDraft();
       if(registerWizardStep>1){registerWizardStep--;return renderRegisterWizard();}
@@ -450,6 +530,7 @@
     }
     if(assistantRoute==='main')return closeAssistant();
     if(assistantRoute.startsWith('learners:'))return assistantLearners();
+    if(assistantRoute.startsWith('classes:'))return assistantClasses();
     if(assistantRoute.startsWith('registers:'))return assistantRegisters();
     if(assistantRoute.startsWith('resources:'))return assistantResources();
     if(assistantRoute.startsWith('games:'))return assistantGames();
@@ -459,11 +540,13 @@
     overlay.scrollTop=0;
     if(assistantRoute==='main')assistantMain();
     else if(assistantRoute==='learners')assistantLearners();
+    else if(assistantRoute==='classes')assistantClasses();
     else if(assistantRoute==='registers')assistantRegisters();
     else if(assistantRoute==='resources')assistantResources();
     else if(assistantRoute==='resources:create')assistantCreateResource();
     else if(assistantRoute==='resources:import')assistantImportMenu();
     else if(assistantRoute==='games')assistantGames();
+    else if(assistantRoute==='class:wizard')renderClassWizard();
     else if(assistantRoute==='register:wizard')renderRegisterWizard();
     else if(assistantRoute==='quiz:wizard')renderQuizWizard();
     else if(assistantRoute==='presentation:wizard')renderPresentationWizard();
@@ -475,7 +558,7 @@
   function assistantMain(){
     assistantRoute='main';const reg=activeRegister(),rs=registerStats(reg);
     copy('What do you need?','Everything is organised into four clear areas.');
-    content.innerHTML=`<div class="ta-menu as-main v39-main"><button data-assistant="learners"><strong>Learners</strong><span>${state.learners.length} learner${state.learners.length===1?'':'s'} saved.</span></button><button data-assistant="registers"><strong>Registers</strong><span>${reg?`${esc(reg.name)} · ${rs.running} timing now`:'Create and manage classroom registers.'}</span></button><button data-assistant="resources"><strong>Resources</strong><span>${state.resources.length} teaching resource${state.resources.length===1?'':'s'} saved.</span></button><button data-assistant="games"><strong>Games</strong><span>Classroom games, quizzes and recap activities.</span></button></div>`;
+    content.innerHTML=`<div class="ta-menu as-main v39-main"><button data-assistant="learners"><strong>Learners</strong><span>${state.learners.length} saved.</span></button><button data-assistant="classes"><strong>Classes</strong><span>${state.teachingClasses.length} class${state.teachingClasses.length===1?'':'es'} set up.</span></button><button data-assistant="registers"><strong>Registers</strong><span>${reg?`${esc(reg.name)} · ${rs.running} live`:'Attendance and learner timers.'}</span></button><button data-assistant="resources"><strong>Courses</strong><span>${state.courses.length} course${state.courses.length===1?'':'s'} · SOW, lessons, slides and quizzes.</span></button></div>`;
     window.EviaAnimations?.react?.('analysing');
   }
   function assistantLearners(q=''){
@@ -486,14 +569,71 @@
     const box=$('#assistantLearnerResults');if(!box)return;const term=String(q).trim().toLowerCase();const rows=state.learners.filter(l=>!term||`${l.name} ${l.externalId||''}`.toLowerCase().includes(term)).sort((a,b)=>a.name.localeCompare(b.name));
     box.innerHTML=rows.length?rows.map(l=>{const a=learnerAttendanceStats(l.id);return `<button class="v39-learner-row" type="button" data-assistant-learner="${attr(l.id)}"><span><strong>${esc(l.name)}</strong><small>${esc(l.externalId||'No learner ID')}</small></span><i><b>ATTENDANCE</b><strong>${a.percentage}%</strong><small>${a.sessions} sessions</small></i></button>`}).join(''):'<div class="v39-empty"><strong>No matching learners</strong><span>Try another name or create a learner.</span></div>';
   }
+  function assistantClasses(){
+    assistantRoute='classes';copy('Classes','Create a class or open an existing one.');
+    content.innerHTML=`<div class="ta-menu"><button data-assistant-action="classes:list"><strong>My classes</strong><span>${state.teachingClasses.length} class${state.teachingClasses.length===1?'':'es'} saved.</span></button><button data-assistant-action="classes:create"><strong>Create class</strong><span>Course, dates, days, learners and registers in one setup.</span></button></div>`;
+  }
   function assistantRegisters(){
     assistantRoute='registers';const reg=activeRegister();copy('Registers',reg?'Open today’s register, manage registers or create one.':'Create your first classroom register.');
     content.innerHTML=`<div class="ta-menu"><button data-assistant-action="registers:today"><strong>Today’s register</strong><span>${reg?`${esc(reg.name)} · ${registerStats(reg).running} timing now`:'No register selected yet.'}</span></button><button data-assistant-action="registers:list"><strong>List of registers</strong><span>${state.classes.length} register${state.classes.length===1?'':'s'} saved.</span></button><button data-assistant-action="registers:create"><strong>Create register</strong><span>Samos will take you through it step by step.</span></button></div>`;
   }
-  function assistantResources(){assistantRoute='resources';copy('Resources','Courses, lesson plans, presentations, quizzes and files.');content.innerHTML=`<div class="ta-menu"><button data-assistant-action="resources:courses"><strong>Official courses & SOW</strong><span>${state.courses.length} course${state.courses.length===1?'':'s'} uploaded.</span></button><button data-assistant-action="resources:presentations"><strong>Presentations</strong><span>Build Samos-led slides with an image box and short text.</span></button><button data-assistant-action="resources:lessons"><strong>Lesson plans</strong><span>Open or create editable lesson plans with KSB links.</span></button><button data-assistant-action="resources:quizzes"><strong>Quizzes</strong><span>Create, reuse and share classroom quizzes.</span></button><button data-assistant-action="resources:import"><strong>Import / upload</strong><span>Import a Samos package or add a normal teaching file.</span></button><button data-assistant-action="resources:create"><strong>Create resource</strong><span>Samos will guide you through it.</span></button></div>`;}
+  function assistantResources(){assistantRoute='resources';copy('Courses','SOW, lesson plans, presentations, quizzes and files.');content.innerHTML=`<div class="ta-menu"><button data-assistant-action="resources:courses"><strong>Official courses & SOW</strong><span>${state.courses.length} course${state.courses.length===1?'':'s'} uploaded.</span></button><button data-assistant-action="resources:presentations"><strong>Presentations</strong><span>Build Samos-led slides with an image box and short text.</span></button><button data-assistant-action="resources:lessons"><strong>Lesson plans</strong><span>Open or create editable lesson plans with KSB links.</span></button><button data-assistant-action="resources:quizzes"><strong>Quizzes</strong><span>Create, reuse and share classroom quizzes.</span></button><button data-assistant-action="resources:import"><strong>Import / upload</strong><span>Import a Samos package or add a normal teaching file.</span></button><button data-assistant-action="resources:create"><strong>Create resource</strong><span>Samos will guide you through it.</span></button></div>`;}
   function assistantImportMenu(){assistantRoute='resources:import';copy('Import / upload','Everything stays on this device.');content.innerHTML=`<div class="ta-menu"><button data-feature-action="scan-samos"><strong>Scan Samos QR</strong><span>Import a small quiz, lesson plan or course package from another Samos.</span></button><button data-feature-action="import-samos-file"><strong>Import .samos file</strong><span>Import larger shared resources, including presentations with images.</span></button><button data-feature-action="upload-normal-file"><strong>Upload normal resource</strong><span>Add a PowerPoint, PDF, document or image to your local library.</span></button></div>`;}
   function assistantCreateResource(){assistantRoute='resources:create';copy('Create resource','What would you like Samos to help you make?');content.innerHTML=`<div class="ta-menu"><button data-assistant-action="create:lesson"><strong>Lesson plan</strong><span>Editable plan with automatic KSB matching.</span></button><button data-assistant-action="create:presentation"><strong>Presentation</strong><span>Image + short text slides controlled by the tutor.</span></button><button data-assistant-action="create:quiz"><strong>Quiz</strong><span>Add questions one at a time and set the correct answer.</span></button><button data-assistant-action="create:course"><strong>Upload official course</strong><span>Add KSB wording, delivery pattern and generate the SOW.</span></button><button data-assistant-action="create:other"><strong>Other resource</strong><span>Create a simple teaching note or upload a file.</span></button></div>`;}
   function assistantGames(){assistantRoute='games';const q=state.resources.filter(r=>r.type==='quiz').length;copy('Games','Offline classroom quizzes and quick checks.');content.innerHTML=`<div class="ta-menu"><button data-assistant-action="games:create-quiz"><strong>Create a quiz</strong><span>Samos guides you through every question.</span></button><button data-assistant-action="games:saved-quizzes"><strong>Saved quizzes</strong><span>${q} quiz${q===1?'':'zes'} ready to reuse.</span></button><button data-assistant-action="games:import-result"><strong>Import learner result</strong><span>Scan or paste a result QR if you choose to record a fun quiz score.</span></button></div>`;}
+
+  /* ---------------- Class creation wizard ---------------- */
+  const WEEKDAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  function startClassWizard(edit=false,id=null,step=1){
+    const c=edit?state.teachingClasses.find(x=>x.id===(id||state.selectedTeachingClassId)):null;
+    classDraft=c?{...clone(c),edit:true}:{id:null,edit:false,name:'',room:'',courseId:'',startDate:'',endDate:'',schedule:[{day:'Monday',start:'09:00',end:'16:00'}],breaks:[],learnerIds:[]};
+    classWizardStep=Math.max(1,Math.min(6,step||1));
+    if(!overlay.classList.contains('open'))openAssistant('class:wizard');else{assistantRoute='class:wizard';renderClassWizard();}
+  }
+  function classProgress(){return `<div class="wizard-progress"><span style="width:${classWizardStep/6*100}%"></span></div>`;}
+  function renderClassWizard(){
+    assistantRoute='class:wizard';if(!classDraft)return assistantClasses();const d=classDraft,edit=d.edit?'Edit':'Create';
+    if(classWizardStep===1){copy(`${edit} class`,'Step 1 of 6 · Class details');content.innerHTML=`${classProgress()}<div class="ta-card"><label class="ta-field"><span>Class name</span><input id="classNameInput" value="${attr(d.name)}" placeholder="e.g. Level 2 Bricklaying · Group A"></label><label class="ta-field"><span>Room / workshop</span><input id="classRoomInput" value="${attr(d.room||'')}" placeholder="Optional"></label><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;}
+    if(classWizardStep===2){copy('Choose the course','Step 2 of 6 · Link teaching to an official course');content.innerHTML=`${classProgress()}<div class="ta-card"><label class="ta-field"><span>Official course</span><select id="classCourseInput"><option value="">No course yet</option>${state.courses.map(c=>`<option value="${attr(c.id)}" ${c.id===d.courseId?'selected':''}>${esc(c.name)}${c.code?` · ${esc(c.code)}`:''}</option>`).join('')}</select></label>${state.courses.length?'':'<div class="wizard-note"><strong>No course uploaded yet</strong><span>You can create the class now and link a course later.</span></div>'}<div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;}
+    if(classWizardStep===3){copy('Class dates','Step 3 of 6 · How long does this class run?');content.innerHTML=`${classProgress()}<div class="ta-card"><div class="ta-row"><label class="ta-field"><span>Start date</span><input id="classStartDateInput" type="date" value="${attr(d.startDate||'')}"></label><label class="ta-field"><span>End date</span><input id="classEndDateInput" type="date" value="${attr(d.endDate||'')}"></label></div><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;}
+    if(classWizardStep===4){
+      copy('Weekly timetable','Step 4 of 6 · Choose the days, times and breaks');const byDay=new Map((d.schedule||[]).map(x=>[x.day,x]));
+      const days=WEEKDAYS.map(day=>{const x=byDay.get(day)||{day,start:'09:00',end:'16:00'},checked=byDay.has(day);return `<div class="class-day-row"><label><input type="checkbox" data-class-day="${attr(day)}" ${checked?'checked':''}><strong>${day.slice(0,3)}</strong></label><input type="time" data-class-day-start="${attr(day)}" value="${attr(x.start)}"><input type="time" data-class-day-end="${attr(day)}" value="${attr(x.end)}"></div>`}).join('');
+      const breaks=(d.breaks||[]).length?d.breaks.map((b,i)=>`<div class="break-editor"><div class="ta-row"><label class="ta-field"><span>Break starts</span><input type="time" data-class-break-start="${i}" value="${attr(b.start)}"></label><label class="ta-field"><span>Break ends</span><input type="time" data-class-break-end="${i}" value="${attr(b.end)}"></label></div><button type="button" class="danger-text" data-remove-class-break="${i}">Remove</button></div>`).join(''):'<div class="v39-empty compact-empty"><strong>No breaks</strong></div>';
+      content.innerHTML=`${classProgress()}<div class="ta-card"><div class="class-day-list">${days}</div><div class="break-editor-list">${breaks}</div><button class="soft-button full" type="button" data-add-class-break>+ Add break</button><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Next</button></div></div>`;return;
+    }
+    if(classWizardStep===5){copy('Choose learners','Step 5 of 6 · Add or remove learners');const selected=new Set(d.learnerIds||[]),rows=state.learners.length?[...state.learners].sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<label class="wizard-learner"><input type="checkbox" data-class-learner value="${attr(l.id)}" ${selected.has(l.id)?'checked':''}><span><strong>${esc(l.name)}</strong><small>${esc(l.externalId||'')}</small></span></label>`).join(''):'<div class="v39-empty"><strong>No learners yet</strong><span>Add one here or continue and add them later.</span></div>';content.innerHTML=`${classProgress()}<div class="ta-card"><button class="soft-button full" type="button" data-assistant-add-learner>+ Add new learner</button><div class="wizard-learners">${rows}</div><div class="ta-actions"><button class="primary" type="button" data-class-wizard-next>Review class</button></div></div>`;return;}
+    const course=state.courses.find(c=>c.id===d.courseId),breakText=d.breaks?.length?d.breaks.map(b=>`${b.start}–${b.end}`).join(' · '):'None';
+    copy('Check the class','Step 6 of 6 · Samos will create the weekly registers');content.innerHTML=`${classProgress()}<div class="ta-card"><div class="wizard-review"><span><small>CLASS</small><strong>${esc(d.name||'Unnamed')}</strong><em>${esc(course?.name||'No course linked')}</em></span><span><small>DATES</small><strong>${esc(d.startDate||'Not set')}</strong><em>to ${esc(d.endDate||'Not set')}</em></span><span><small>DAYS</small><strong>${d.schedule?.length||0}</strong><em>${esc(classDaysText(d))}</em></span><span><small>LEARNERS</small><strong>${d.learnerIds?.length||0}</strong><em>Breaks: ${esc(breakText)}</em></span></div><div class="ta-actions"><button class="primary" type="button" data-save-class>${d.edit?'Save changes':'Create class'}</button>${d.edit?'<button type="button" data-delete-class>Delete class</button>':''}</div></div>`;
+  }
+  function syncClassDraft(){
+    if(!classDraft)return;
+    if(classWizardStep===1){classDraft.name=$('#classNameInput')?.value.trim()??classDraft.name;classDraft.room=$('#classRoomInput')?.value.trim()??classDraft.room;}
+    if(classWizardStep===2)classDraft.courseId=$('#classCourseInput')?.value||'';
+    if(classWizardStep===3){classDraft.startDate=$('#classStartDateInput')?.value||'';classDraft.endDate=$('#classEndDateInput')?.value||'';}
+    if(classWizardStep===4){classDraft.schedule=$$('[data-class-day]:checked',content).map(ch=>({day:ch.dataset.classDay,start:$(`[data-class-day-start="${ch.dataset.classDay}"]`,content)?.value||'09:00',end:$(`[data-class-day-end="${ch.dataset.classDay}"]`,content)?.value||'16:00'}));classDraft.breaks=(classDraft.breaks||[]).map((b,i)=>({...b,start:$(`[data-class-break-start="${i}"]`,content)?.value||b.start,end:$(`[data-class-break-end="${i}"]`,content)?.value||b.end}));}
+    if(classWizardStep===5)classDraft.learnerIds=$$('[data-class-learner]:checked',content).map(x=>x.value);
+  }
+  function validateClassStep(){
+    syncClassDraft();const d=classDraft;if(!d)return false;
+    if(classWizardStep===1&&!d.name){toast('Add a class name');return false;}
+    if(classWizardStep===3){if(!d.startDate||!d.endDate){toast('Add the class start and end dates');return false;}if(d.endDate<d.startDate){toast('End date must be after the start date');return false;}}
+    if(classWizardStep===4){if(!d.schedule.length){toast('Choose at least one class day');return false;}for(const x of d.schedule){if(localMs(todayKey(),x.end)<=localMs(todayKey(),x.start)){toast(`Check the ${x.day} times`);return false;}}for(const b of d.breaks||[]){if(!b.start||!b.end||localMs(todayKey(),b.end)<=localMs(todayKey(),b.start)){toast('Check the break times');return false;}for(const x of d.schedule){if(b.start<x.start||b.end>x.end){toast('Breaks must fit inside every selected class day');return false;}}}const ordered=[...(d.breaks||[])].sort((a,b)=>a.start.localeCompare(b.start));for(let i=1;i<ordered.length;i++)if(ordered[i].start<ordered[i-1].end){toast('Breaks cannot overlap');return false;}d.breaks=ordered.map((b,i)=>({...b,label:`Break ${i+1}`}));}
+    return true;
+  }
+  function syncTeachingClassRegisters(c){
+    const learners=(c.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).map(clone),existing=state.classes.filter(r=>r.teachingClassId===c.id),keep=new Set();
+    for(const day of c.schedule||[]){let r=existing.find(x=>x.scheduleDayKey===day.day||x.day===day.day);const values={name:c.name,day:day.day,room:c.room||'',start:day.start,end:day.end,breaks:normaliseBreaks(c.breaks),learners,teachingClassId:c.id,courseId:c.courseId||'',classStartDate:c.startDate||'',classEndDate:c.endDate||'',generatedFromClass:true,archived:false,scheduleDayKey:day.day};if(r)Object.assign(r,values);else{r={id:uid(),...values};state.classes.push(r);}keep.add(r.id);}
+    for(const r of existing){if(keep.has(r.id))continue;if(state.history.some(h=>h.classId===r.id))r.archived=true;else{state.classes=state.classes.filter(x=>x.id!==r.id);Object.keys(state.attendance).filter(k=>k.startsWith(`${r.id}:`)).forEach(k=>delete state.attendance[k]);}}
+    c.registerIds=[...keep];if(!state.activeClassId&&c.registerIds.length)state.activeClassId=c.registerIds[0];
+  }
+  function saveClassWizard(){
+    syncClassDraft();if(!classDraft?.name)return;let c;if(classDraft.edit){c=state.teachingClasses.find(x=>x.id===classDraft.id);if(!c)return;Object.assign(c,{name:classDraft.name,room:classDraft.room,courseId:classDraft.courseId,startDate:classDraft.startDate,endDate:classDraft.endDate,schedule:normaliseTeachingSchedule(classDraft.schedule),breaks:normaliseBreaks(classDraft.breaks),learnerIds:[...new Set(classDraft.learnerIds||[])]});}else{c={id:uid(),name:classDraft.name,room:classDraft.room,courseId:classDraft.courseId,startDate:classDraft.startDate,endDate:classDraft.endDate,schedule:normaliseTeachingSchedule(classDraft.schedule),breaks:normaliseBreaks(classDraft.breaks),learnerIds:[...new Set(classDraft.learnerIds||[])],registerIds:[]};state.teachingClasses.push(c);}syncTeachingClassRegisters(c);state.selectedTeachingClassId=c.id;classDraft=null;classWizardStep=1;save(false);closeAssistant();state.view='class';save();toast('Class saved');
+  }
+  function deleteTeachingClass(id){
+    const c=state.teachingClasses.find(x=>x.id===id);if(!c||!confirm(`Delete ${c.name}? Completed attendance history will be kept.`))return;const regs=state.classes.filter(r=>r.teachingClassId===c.id);for(const r of regs){if(state.history.some(h=>h.classId===r.id))r.archived=true;else{state.classes=state.classes.filter(x=>x.id!==r.id);Object.keys(state.attendance).filter(k=>k.startsWith(`${r.id}:`)).forEach(k=>delete state.attendance[k]);}}state.teachingClasses=state.teachingClasses.filter(x=>x.id!==c.id);state.selectedTeachingClassId=null;classDraft=null;classWizardStep=1;save(false);if(overlay.classList.contains('open'))closeAssistant();state.view='classes';save();toast('Class deleted');
+  }
+  function removeLearnerFromClass(classId,learnerId){const c=state.teachingClasses.find(x=>x.id===classId),l=state.learners.find(x=>x.id===learnerId);if(!c||!l)return;if(!confirm(`Remove ${l.name} from ${c.name}?`))return;c.learnerIds=(c.learnerIds||[]).filter(x=>x!==learnerId);syncTeachingClassRegisters(c);save();toast('Learner removed from class');}
 
   /* ---------------- Register creation wizard ---------------- */
   function startRegisterWizard(edit=false,id=null){
@@ -557,7 +697,7 @@
 
   function saveRegisterWizard(){
     syncRegisterDraft();if(!registerDraft?.name)return;
-    const values={name:registerDraft.name,day:registerDraft.day,room:registerDraft.room,start:registerDraft.start,end:registerDraft.end,breaks:normaliseBreaks(registerDraft.breaks)};
+    const values={name:registerDraft.name,day:registerDraft.day,room:registerDraft.room,start:registerDraft.start,end:registerDraft.end,breaks:normaliseBreaks(registerDraft.breaks),archived:false};
     const learnerRows=(registerDraft.learnerIds||[]).map(id=>state.learners.find(l=>l.id===id)).filter(Boolean).map(clone);
     if(registerDraft.edit){const reg=state.classes.find(c=>c.id===registerDraft.id);if(!reg)return;Object.assign(reg,values,{learners:learnerRows});state.activeClassId=reg.id;}
     else{const reg={id:uid(),...values,learners:learnerRows};state.classes.push(reg);state.activeClassId=reg.id;}
@@ -571,7 +711,7 @@
 
   /* ---------------- Learners / assignment / timers ---------------- */
   function openLearnerDialog(){$('#learnerNameInput').value='';$('#learnerIdInput').value='';$('#learnerDialog').showModal();setTimeout(()=>$('#learnerNameInput').focus(),60);}
-  function saveLearner(){const name=$('#learnerNameInput').value.trim();if(!name)return false;state.learners.push({id:uid(),name,externalId:$('#learnerIdInput').value.trim(),attendance:{sessions:0,expectedMs:0,attendedMs:0,percentage:0}});save(false);toast('Learner saved');if(overlay.classList.contains('open'))setTimeout(()=>assistantLearners(),0);else render();return true;}
+  function saveLearner(){const name=$('#learnerNameInput').value.trim();if(!name)return false;const learner={id:uid(),name,externalId:$('#learnerIdInput').value.trim(),attendance:{sessions:0,expectedMs:0,attendedMs:0,percentage:0}};state.learners.push(learner);if(assistantRoute==='class:wizard'&&classDraft){syncClassDraft();classDraft.learnerIds=[...new Set([...(classDraft.learnerIds||[]),learner.id])];}save(false);toast('Learner saved');if(overlay.classList.contains('open'))setTimeout(()=>assistantRoute==='class:wizard'?renderClassWizard():assistantLearners(),0);else render();return true;}
 
   function openAssignDialog(){
     const reg=activeRegister();if(!reg){toast('Create or select a register first');return;}if(!state.learners.length){toast('Create a learner first');openLearnerDialog();return;}
@@ -584,6 +724,7 @@
     const reg=activeRegister();if(!reg)return;const key=todayKey(),t=sessionTimingState(reg,key),now=Date.now();
     if(completedSession(reg,key)){toast('This session is already complete');return;}
     if(t.code==='not-today'){toast(`This register is scheduled for ${reg.day}`);return;}
+    if(t.code==='outside-dates'){toast('This register is outside the class dates');return;}
     if(t.code==='early'){toast(`Timers open at ${formatTime(t.b.open)}`);return;}
     if(t.code==='ended'){finaliseSession(reg,key,true,t.b.end);save();toast('Session ended and attendance saved');return;}
     const a=attendance(reg.id,key);a._meta={...(a._meta||{}),date:key,startedAt:a._meta?.startedAt||now};const rec=a[learnerId]||{intervals:[],runningSince:null};rec.intervals=Array.isArray(rec.intervals)?rec.intervals:[];
@@ -600,7 +741,7 @@
 
   function manageTicker(){
     const key=todayKey(),current=activeRegister();
-    const pending=state.classes.filter(reg=>{
+    const pending=state.classes.filter(reg=>!reg.archived&&registerDateActive(reg,key)).filter(reg=>{
       if(completedSession(reg,key))return false;
       const a=state.attendance[attendanceKey(reg.id,key)];
       return Boolean(a?._meta?.startedAt);
@@ -610,6 +751,7 @@
       const now=Date.now();
       let autoSaved=false;
       for(const reg of state.classes){
+        if(reg.archived||!registerDateActive(reg,key))continue;
         if(completedSession(reg,key))continue;
         const a=state.attendance[attendanceKey(reg.id,key)];
         if(!a?._meta?.startedAt)continue;
@@ -625,13 +767,13 @@
 
   /* ---------------- Resources / profile ---------------- */
   function openResourceDialog(type='lesson-plan'){$('#resourceTypeInput').value=type;$('#resourceTitleInput').value='';$('#resourceNotesInput').value='';$('#resourceDialog').showModal();setTimeout(()=>$('#resourceTitleInput').focus(),60);}
-  function saveResource(){const title=$('#resourceTitleInput').value.trim();if(!title)return false;const type=$('#resourceTypeInput').value;state.resources.push({id:uid(),type,title,notes:$('#resourceNotesInput').value.trim(),kind:'created',createdAt:new Date().toISOString()});state.resourceFilter=type;save(false);toast('Resource saved');if(overlay.classList.contains('open')){closeAssistant();state.view='resources';}render();return true;}
+  function saveResource(){const title=$('#resourceTitleInput').value.trim();if(!title)return false;const type=$('#resourceTypeInput').value;state.resources.push({id:uid(),type,title,notes:$('#resourceNotesInput').value.trim(),courseId:state.resourceCourseFilter||'',kind:'created',createdAt:new Date().toISOString()});state.resourceFilter=type;save(false);toast('Resource saved');if(overlay.classList.contains('open')){closeAssistant();state.view='resources';}render();return true;}
   function detectType(file){return /\.(ppt|pptx)$/i.test(file?.name||'')?'powerpoint':'other';}
   function openResourceDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(RESOURCE_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(RESOURCE_STORE))db.createObjectStore(RESOURCE_STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
   async function putFile(id,file){const db=await openResourceDb();await new Promise((resolve,reject)=>{const tx=db.transaction(RESOURCE_STORE,'readwrite');tx.objectStore(RESOURCE_STORE).put(file,id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close();}
   async function getFile(id){const db=await openResourceDb();const blob=await new Promise((resolve,reject)=>{const tx=db.transaction(RESOURCE_STORE,'readonly'),req=tx.objectStore(RESOURCE_STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error)});db.close();return blob;}
   async function removeFile(id){try{const db=await openResourceDb();await new Promise((resolve,reject)=>{const tx=db.transaction(RESOURCE_STORE,'readwrite');tx.objectStore(RESOURCE_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close();}catch(_){}}
-  async function importResource(file){if(!file)return;const id=uid(),type=detectType(file);try{await putFile(id,file);state.resources.push({id,type,title:file.name.replace(/\.[^.]+$/,''),kind:'upload',fileName:file.name,mime:file.type||'',size:file.size||0,createdAt:new Date().toISOString()});state.resourceFilter=type;save(false);toast('Resource uploaded');if(overlay.classList.contains('open'))closeAssistant();state.view='resources';render();}catch(_){toast('This file could not be saved on this device');}$('#resourceFileInput').value='';}
+  async function importResource(file){if(!file)return;const id=uid(),type=detectType(file);try{await putFile(id,file);state.resources.push({id,type,title:file.name.replace(/\.[^.]+$/,''),courseId:state.resourceCourseFilter||'',kind:'upload',fileName:file.name,mime:file.type||'',size:file.size||0,createdAt:new Date().toISOString()});state.resourceFilter=type;save(false);toast('Resource uploaded');if(overlay.classList.contains('open'))closeAssistant();state.view='resources';render();}catch(_){toast('This file could not be saved on this device');}$('#resourceFileInput').value='';}
   async function openResource(id){const r=state.resources.find(x=>x.id===id);if(!r)return;try{const blob=await getFile(id);if(!blob){toast('Stored file could not be found');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=r.fileName||r.title||'resource';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(_){toast('Resource could not be opened');}}
   async function deleteResource(id){const r=state.resources.find(x=>x.id===id);if(!r||!confirm(`Delete ${r.title}?`))return;state.resources=state.resources.filter(x=>x.id!==id);if(state.selectedResourceId===id){state.selectedResourceId=null;state.view='resources';}save();if(r.kind==='upload')await removeFile(id);if(r.type==='presentation'){for(const sl of r.slides||[])if(sl.imageKey)await removeFile(sl.imageKey);}toast('Resource deleted');}
   function openProfile(){$('#teacherNameInput').value=state.settings.teacherName||'';$('#centreInput').value=state.settings.centre||'';$('#profileDialog').showModal();setTimeout(()=>$('#teacherNameInput')?.focus(),60);}
@@ -665,7 +807,7 @@
 
   function startQuizWizard(id=null){
     const existing=id?state.resources.find(r=>r.id===id&&r.type==='quiz'):null;
-    quizDraft=existing?clone(existing):{id:uid(),type:'quiz',title:'',quizType:'multiple-choice',questions:[],results:[],createdAt:nowIso(),kind:'created'};
+    quizDraft=existing?clone(existing):{id:uid(),type:'quiz',title:'',courseId:state.resourceCourseFilter||'',quizType:'multiple-choice',questions:[],results:[],createdAt:nowIso(),kind:'created'};
     quizDraft.edit=Boolean(existing);quizWizardStep=1;quizEditIndex=null;
     if(!overlay.classList.contains('open'))openAssistant('quiz:wizard');else{assistantRoute='quiz:wizard';renderQuizWizard();}
   }
@@ -706,7 +848,7 @@
 
   function startPresentationWizard(id=null,prefill=null){
     const existing=id?state.resources.find(r=>r.id===id&&r.type==='presentation'):null;
-    presentationDraft=existing?clone(existing):(prefill?{...clone(prefill),id:prefill.id||uid(),type:'presentation',kind:'created',createdAt:prefill.createdAt||nowIso()}:{id:uid(),type:'presentation',title:'',courseId:'',slides:[],kind:'created',createdAt:nowIso()});
+    presentationDraft=existing?clone(existing):(prefill?{...clone(prefill),id:prefill.id||uid(),type:'presentation',kind:'created',createdAt:prefill.createdAt||nowIso()}:{id:uid(),type:'presentation',title:'',courseId:state.resourceCourseFilter||'',slides:[],kind:'created',createdAt:nowIso()});
     presentationDraft.edit=Boolean(existing);presentationWizardStep=1;presentationEditIndex=null;presentationPendingImage=null;
     if(!overlay.classList.contains('open'))openAssistant('presentation:wizard');else{assistantRoute='presentation:wizard';renderPresentationWizard();}
   }
@@ -768,7 +910,7 @@
   }
 
   function blankLessonFields(){return{topic:'',learningOutcomes:'',priorLearning:'',starter:'',tutorActivities:'',learnerActivities:'',assessment:'',resources:'',englishMathsDigital:'',inclusion:'',safeguarding:'',workplace:'',healthSafety:'',plenary:'',nextLearning:''};}
-  function startLessonWizard(id=null,prefill=null){const existing=id?state.resources.find(r=>r.id===id&&r.type==='lesson-plan'):null;lessonDraft=existing?clone(existing):(prefill?clone(prefill):{id:uid(),type:'lesson-plan',title:'',courseId:'',durationHours:6,fields:blankLessonFields(),linkedKSBs:[],kind:'created',createdAt:nowIso()});lessonDraft.fields={...blankLessonFields(),...(lessonDraft.fields||{})};lessonDraft.edit=Boolean(existing);lessonWizardStep=1;if(!overlay.classList.contains('open'))openAssistant('lesson:wizard');else{assistantRoute='lesson:wizard';renderLessonWizard();}}
+  function startLessonWizard(id=null,prefill=null){const existing=id?state.resources.find(r=>r.id===id&&r.type==='lesson-plan'):null;lessonDraft=existing?clone(existing):(prefill?clone(prefill):{id:uid(),type:'lesson-plan',title:'',courseId:state.resourceCourseFilter||'',durationHours:6,fields:blankLessonFields(),linkedKSBs:[],kind:'created',createdAt:nowIso()});lessonDraft.fields={...blankLessonFields(),...(lessonDraft.fields||{})};lessonDraft.edit=Boolean(existing);lessonWizardStep=1;if(!overlay.classList.contains('open'))openAssistant('lesson:wizard');else{assistantRoute='lesson:wizard';renderLessonWizard();}}
   function lessonProgress(){return `<div class="wizard-progress"><span style="width:${lessonWizardStep/3*100}%"></span></div>`;}
   function syncLessonDraft(){if(!lessonDraft)return;const d=lessonDraft;if(lessonWizardStep===1){d.title=$('#lessonTitleInput')?.value.trim()??d.title;d.courseId=$('#lessonCourseInput')?.value||d.courseId;d.durationHours=Math.max(.5,Number($('#lessonDurationInput')?.value)||d.durationHours||6);}if(lessonWizardStep===2){for(const key of Object.keys(blankLessonFields())){const el=$(`[data-lesson-field="${key}"]`);if(el)d.fields[key]=el.value.trim();}}if(lessonWizardStep===3){d.linkedKSBs=$$('[data-lesson-ksb]:checked',content).map(x=>({code:x.dataset.code,courseId:x.dataset.courseId,percent:Number(x.dataset.percent)||0,source:Number(x.dataset.percent)>=50?'auto':'tutor'}));}}
   function lessonText(d=lessonDraft){return [d?.title,...Object.values(d?.fields||{})].join('\n');}
@@ -909,12 +1051,22 @@
     const b=event.target.closest('button');if(!b)return;
     if(b.hasAttribute('data-home-back')){
       if(state.view==='resource'){state.view='resources';state.selectedResourceId=null;return save();}
+      if(state.view==='resources'&&state.resourceCourseFilter&&state.selectedTeachingClassId){state.view='class';state.resourceCourseFilter='';return save();}
+      if(state.view==='class'){state.view='classes';state.selectedTeachingClassId=null;return save();}
       if(state.view==='courses'&&state.selectedCourseId){state.selectedCourseId=null;return save();}
       return goHome();
     }
-    if(b.dataset.homeMetric)return openAssistant(b.dataset.homeMetric);
+    if(b.dataset.homeMetric)return openAssistant(b.dataset.homeMetric==='courses'?'resources':b.dataset.homeMetric);
     if(b.hasAttribute('data-add-learner'))return openLearnerDialog();
     if(b.dataset.learnerInfo){state.selectedLearnerId=b.dataset.learnerInfo;state.view='learner';save();return;}
+    if(b.dataset.deleteLearner)return deleteLearner(b.dataset.deleteLearner);
+    if(b.hasAttribute('data-new-class'))return startClassWizard(false);
+    if(b.dataset.openTeachingClass){state.selectedTeachingClassId=b.dataset.openTeachingClass;state.view='class';save();return;}
+    if(b.dataset.editClass)return startClassWizard(true,b.dataset.editClass);
+    if(b.dataset.manageClassLearners)return startClassWizard(true,b.dataset.manageClassLearners,5);
+    if(b.dataset.removeClassLearner)return removeLearnerFromClass(state.selectedTeachingClassId,b.dataset.removeClassLearner);
+    if(b.dataset.classResourceFilter){const c=teachingClass(),course=c&&state.courses.find(x=>x.id===c.courseId);if(course){state.resourceFilter=b.dataset.classResourceFilter;state.resourceCourseFilter=course.id;state.view='resources';save();}return;}
+    if(b.hasAttribute('data-clear-course-filter')){state.resourceCourseFilter='';save();return;}
     if(b.hasAttribute('data-new-register'))return startRegisterWizard(false);
     if(b.hasAttribute('data-register-list'))return renderRegisterList();
     if(b.dataset.selectRegister){state.activeClassId=b.dataset.selectRegister;save();return;}
@@ -972,6 +1124,12 @@
     if(b.hasAttribute('data-assistant-add-learner'))return openLearnerDialog();
     if(b.dataset.assistantLearner){state.selectedLearnerId=b.dataset.assistantLearner;closeAssistant();state.view='learner';save();return;}
 
+    if(b.hasAttribute('data-class-wizard-next')){if(validateClassStep()){classWizardStep=Math.min(6,classWizardStep+1);renderClassWizard();}return;}
+    if(b.hasAttribute('data-add-class-break')){syncClassDraft();classDraft.breaks.push({id:uid(),label:`Break ${classDraft.breaks.length+1}`,start:'',end:''});renderClassWizard();return;}
+    if(b.dataset.removeClassBreak!==undefined){syncClassDraft();classDraft.breaks.splice(Number(b.dataset.removeClassBreak),1);renderClassWizard();return;}
+    if(b.hasAttribute('data-save-class'))return saveClassWizard();
+    if(b.hasAttribute('data-delete-class'))return deleteTeachingClass(classDraft?.id);
+
     if(b.hasAttribute('data-register-wizard-next')){if(validateWizardStep()){registerWizardStep=Math.min(5,registerWizardStep+1);renderRegisterWizard();}return;}
     if(b.hasAttribute('data-add-wizard-break')){syncRegisterDraft();registerDraft.breaks.push({id:uid(),label:`Break ${registerDraft.breaks.length+1}`,start:'',end:''});renderRegisterWizard();return;}
     if(b.dataset.removeWizardBreak!==undefined){syncRegisterDraft();registerDraft.breaks.splice(Number(b.dataset.removeWizardBreak),1);renderRegisterWizard();return;}
@@ -1012,13 +1170,15 @@
 
     if(b.dataset.assistantAction){
       const a=b.dataset.assistantAction;
-      if(a==='registers:today'){closeAssistant();state.view='registers';selectUsefulRegister();save();}
+      if(a==='classes:list'){closeAssistant();state.view='classes';state.selectedTeachingClassId=null;save();}
+      else if(a==='classes:create')startClassWizard(false);
+      else if(a==='registers:today'){closeAssistant();state.view='registers';selectUsefulRegister();save();}
       else if(a==='registers:list'){closeAssistant();renderRegisterList();}
       else if(a==='registers:create')startRegisterWizard(false);
       else if(a==='resources:courses'){closeAssistant();state.view='courses';state.selectedCourseId=null;save();}
-      else if(a==='resources:presentations'){closeAssistant();state.view='resources';state.resourceFilter='presentation';save();}
-      else if(a==='resources:lessons'){closeAssistant();state.view='resources';state.resourceFilter='lesson-plan';save();}
-      else if(a==='resources:quizzes'){closeAssistant();state.view='resources';state.resourceFilter='quiz';save();}
+      else if(a==='resources:presentations'){closeAssistant();state.view='resources';state.resourceFilter='presentation';state.resourceCourseFilter='';save();}
+      else if(a==='resources:lessons'){closeAssistant();state.view='resources';state.resourceFilter='lesson-plan';state.resourceCourseFilter='';save();}
+      else if(a==='resources:quizzes'){closeAssistant();state.view='resources';state.resourceFilter='quiz';state.resourceCourseFilter='';save();}
       else if(a==='resources:import'){assistantRoute='resources:import';assistantImportMenu();}
       else if(a==='resources:create'){assistantRoute='resources:create';assistantCreateResource();}
       else if(a==='create:lesson')startLessonWizard();
@@ -1121,7 +1281,7 @@
   window.EviaAnimations?.init?.($('#eviaFace'));
   window.SamosApp={
     build:BUILD,getState:()=>clone(state),goHome,openAssistantMenu:()=>openAssistant('main'),
-    openLearners:()=>{state.view='learners';save()},openRegisters:()=>{state.view='registers';selectUsefulRegister();save()},openResources:()=>{state.view='resources';save()},
+    openLearners:()=>{state.view='learners';save()},openClasses:()=>{state.view='classes';save()},openRegisters:()=>{state.view='registers';selectUsefulRegister();save()},openResources:()=>{state.view='resources';save()},
     clearOldShellCaches,learnerAttendanceStats,scheduledMs,finaliseSession
   };
 

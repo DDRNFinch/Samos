@@ -1,7 +1,7 @@
 {
   "name": "Samos",
   "short_name": "Samos",
-  "description": "Samos offline classroom assistant for learners, timed registers, official course planning, schemes of work, lesson plans, presentations, quizzes and teaching resources.",
+  "description": "Samos offline classroom assistant for learners, classes, timed registers, official course planning, schemes of work, lesson plans, presentations, quizzes and teaching resources.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
