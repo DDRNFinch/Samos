@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  const brand = document.querySelector('#brandHomeBtn .brand-name');
+  const brand = document.querySelector('.app-brand .brand-word');
   if(!brand) return;
   const BUILD = document.querySelector('meta[name="samos-build"]')?.content || window.SAMOS_BUILD || 'unknown';
 

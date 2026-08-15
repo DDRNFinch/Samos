@@ -1,0 +1,122 @@
+/* Samos uses the current Tilos UI geometry and typography; only the accent palette is green. */
+:root{
+  --yellow:#63c495;
+  --yellow-strong:#4da979;
+  --yellow-soft:#eaf8f0;
+  --tilos-water:#63c495;
+  --tilos-water-deep:#4da979;
+  --tilos-water-soft:#eaf8f0;
+  --green:#4da979;
+  --green-soft:#edf8f2;
+}
+html{background:#eef8f2}
+body{background:#eef8f2!important}
+main{background:#f8fcfa!important}
+.staff-mode .app-header{background:#f8fcfaee!important}
+.app-brand .brand-word{cursor:pointer;user-select:none;-webkit-user-select:none}
+.app-brand .brand-word .brand-o{color:var(--tilos-water-deep)!important;display:inline-block}
+header span,.app-brand span{color:var(--tilos-water-deep)!important}
+.install-button{background:var(--yellow-soft)!important;color:#35634c!important;border-color:#cce9d8!important}
+.header-utility-actions{display:flex!important;justify-content:flex-start!important;gap:11px!important;white-space:nowrap!important;margin-top:1px!important}
+.header-utility-actions button{border:0!important;background:transparent!important;padding:1px 0!important;color:#6f797e!important;font:inherit!important;font-size:10px!important;line-height:1.2!important}
+.header-utility-actions button:active{color:#438e69!important}
+.assessor-label{display:block!important;margin-top:4px!important;font-size:10px!important;font-weight:800!important;letter-spacing:.04em!important;line-height:1.15!important;color:#718096!important;text-transform:none!important}
+.staff-mode .app-header{align-items:flex-start!important}
+.staff-mode .app-brand{display:grid!important;justify-items:start!important;gap:2px!important}
+.staff-mode .header-actions{align-items:flex-start!important}
+
+/* Same face sizing as Tilos main. */
+.staff-mode .staff-face-panel{margin-bottom:0!important;padding-bottom:5px!important}
+.staff-mode .staff-face-panel .home-evia-space{display:grid!important;place-items:center!important;min-height:132px!important}
+.staff-mode .staff-face-panel .home-evia-stage{position:relative!important;display:grid!important;place-items:center!important;width:130px!important;height:130px!important;min-width:130px!important;max-width:130px!important;min-height:130px!important;max-height:130px!important;aspect-ratio:1/1!important;margin:0 auto!important;flex:none!important}
+.staff-mode .staff-face-panel .home-evia-stage>#eviaFace.evia-face{position:relative!important;inset:auto!important;width:104px!important;height:104px!important;min-width:104px!important;max-width:104px!important;min-height:104px!important;max-height:104px!important;aspect-ratio:1/1!important;box-sizing:border-box!important;padding:0!important;margin:0!important;border-radius:50%!important;flex:0 0 104px!important;align-self:center!important;justify-self:center!important}
+.staff-face-copy{display:none!important}
+.evia-face{border-color:var(--yellow)!important;filter:drop-shadow(0 7px 12px rgba(77,169,121,.16))!important}
+.evia-eye{border-color:var(--yellow)!important}
+.evia-face.tilos-welcome-shimmer{box-shadow:0 0 0 7px rgba(99,196,149,.08),0 0 27px 11px rgba(99,196,149,.20)!important;filter:drop-shadow(0 5px 8px rgba(99,196,149,.16)) drop-shadow(0 0 12px rgba(99,196,149,.20))!important}
+
+/* Current Tilos home: assistant fixed in the centre, four arches fixed at the bottom. */
+body.samos-home-centred{overflow:hidden!important}
+body.samos-home-centred main{position:relative!important;height:100svh!important;height:100dvh!important;min-height:100svh!important;min-height:100dvh!important;overflow:hidden!important;box-sizing:border-box!important}
+body.samos-home-centred .staff-face-panel{position:fixed!important;left:50%!important;top:50svh!important;top:50dvh!important;transform:translate(-50%,-50%)!important;width:min(calc(100vw - 40px),460px)!important;margin:0!important;padding:0!important;z-index:6!important}
+body.samos-home-centred .staff-face-panel .home-evia-space{height:auto!important;min-height:132px!important;margin:0!important}
+body.samos-home-centred #staffApp{position:fixed!important;left:50%!important;bottom:max(10px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;width:min(calc(100vw - 40px),460px)!important;z-index:7!important;margin:0!important;padding:0!important}
+body.samos-home-centred #staffApp>.assessor-value-home{display:flex!important;flex-direction:column!important;gap:8px!important;margin:0!important;padding:0!important}
+body.samos-home-centred .assessor-value-home>.vh-arches{margin:0!important;padding:0 2px!important}
+@media(max-width:390px){body.samos-home-centred .staff-face-panel,body.samos-home-centred #staffApp{width:calc(100vw - 28px)!important}}
+@media(max-height:580px){body.samos-home-centred .staff-face-panel .home-evia-stage{width:112px!important;height:112px!important;min-width:112px!important;max-width:112px!important;min-height:112px!important;max-height:112px!important}body.samos-home-centred .staff-face-panel .home-evia-stage>#eviaFace.evia-face{width:90px!important;height:90px!important;min-width:90px!important;max-width:90px!important;min-height:90px!important;max-height:90px!important;flex-basis:90px!important}}
+
+/* Exact Tilos value-home arch geometry. */
+.assessor-value-home{display:grid;gap:18px}
+.vh-arches{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 2px}
+.vh-arch{border:0;background:transparent;padding:2px 0;color:#1b252b;display:grid;place-items:center;font:inherit}
+.vh-arch strong{font-size:9px;letter-spacing:.07em;color:#68757b}
+.vh-arch svg{width:68px;height:39px;overflow:visible}
+.vh-track,.vh-value{fill:none;stroke-width:5;stroke-linecap:round}
+.vh-track{stroke:#e5ecef}.vh-value{stroke:var(--yellow)}
+.vh-arch span{font-size:15px;font-weight:850;margin-top:-8px}
+@media(max-width:430px){.vh-arches{gap:1px}.vh-arch svg{width:61px}}
+
+/* Exact Tilos assistant shell, green palette. */
+body.evia-open>main,body.evia-open>dialog{filter:blur(8px) saturate(.8) brightness(.92)!important}
+#samosOverlay{padding:calc(10px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));background:rgba(242,250,246,.97)!important;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);z-index:200}
+#samosOverlay .evia-wizard{width:min(590px,100%);min-height:100%;padding:4px 2px 28px}
+#samosOverlay .evia-toolbar{min-height:46px;align-items:center}
+#samosOverlay .evia-toolbar button{width:40px;height:40px;border:1px solid rgba(20,20,20,.07);border-radius:50%;background:rgba(255,255,255,.86);color:#454548;font-size:21px;box-shadow:var(--shadow-sm);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+#samosOverlay .evia-toolbar button:hover,#samosOverlay .evia-toolbar button:focus-visible{background:#fff;color:#111;outline:none}
+#samosOverlay .evia-stage{height:clamp(118px,20vh,172px)}
+#samosOverlay .evia-stage .evia-face{width:clamp(92px,21vw,116px);height:clamp(92px,21vw,116px);border-width:5px;background:rgba(255,255,255,.46);filter:drop-shadow(0 10px 18px rgba(77,169,121,.10))!important}
+#samosOverlay .evia-stage .evia-eye{border-width:3.5px}
+#samosOverlay .evia-copy{max-width:520px;margin:0 auto;text-align:center}
+#samosOverlay .evia-greeting{margin:0 0 7px;color:#4a9d73;font-size:12px;font-weight:740;letter-spacing:.02em}
+#samosOverlay .evia-copy h2{margin:0 0 7px;color:var(--ink);font-size:clamp(23px,5.8vw,31px);line-height:1.08;font-weight:760;letter-spacing:-.04em}
+#samosOverlay .evia-copy #samosHint,#samosOverlay .evia-copy>p:not(.evia-greeting){max-width:470px;margin:0 auto 18px;color:#77777b;font-size:13px;line-height:1.45}
+#samosContent{width:100%;max-width:540px;margin:0 auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+
+/* Exact Tilos assistant component dimensions. */
+.ta-card{background:#fff;border:1px solid rgba(99,196,149,.18);border-radius:20px;padding:15px;display:grid;gap:12px;box-shadow:0 8px 24px rgba(24,63,45,.06)}
+.ta-field{display:grid;gap:6px;text-align:left}.ta-field>span{font-size:11px;font-weight:760;color:#4d565b}.ta-field input,.ta-field textarea,.ta-field select{width:100%;min-height:48px;border:1px solid #d8dfe2;border-radius:14px;background:#fff;padding:11px 12px;color:#111;font:16px/1.4 inherit;outline:none}.ta-field textarea{min-height:105px;resize:vertical}.ta-field input:focus,.ta-field textarea:focus,.ta-field select:focus{border-color:var(--yellow);box-shadow:0 0 0 3px rgba(99,196,149,.13)}
+.ta-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ta-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.ta-actions button,.ta-menu button,.ta-result,.ta-choice{min-height:50px;border:1px solid #dbe4e0;border-radius:15px;background:#fff;color:#162027;padding:11px 13px;font:inherit;font-size:13px;font-weight:720}.ta-actions .primary{background:#111;color:#fff;border-color:#111}.ta-menu,.ta-choices{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ta-menu button,.ta-choice{text-align:left;min-height:72px;display:grid;gap:4px;align-content:center}.ta-menu strong,.ta-choice strong{font-size:14px}.ta-menu span,.ta-choice span{font-size:11px;color:#767d81;font-weight:560}
+.ta-context{margin-bottom:10px;padding:10px 12px;border-radius:15px;background:#eef9f3;border:1px solid rgba(99,196,149,.16);display:flex;justify-content:space-between;align-items:center}.ta-context span{display:grid;text-align:left}.ta-context small{font-size:9px;color:#4da979;font-weight:820}.ta-context strong{font-size:13px}.ta-context em{font-size:10px;color:#66757c;font-style:normal}.ta-context button{border:0;background:transparent;color:#438e69;font:inherit;font-size:11px;font-weight:750}
+.ta-results{display:grid;gap:8px}.ta-result{text-align:left;display:flex;justify-content:space-between;align-items:center}.ta-result span{display:grid}.ta-result small{font-size:10px;color:#7d8589}.ta-result em{font-size:10px;color:#438e69;font-style:normal}.ta-result b{font-size:20px;color:var(--yellow)}
+.ta-check{display:flex;gap:9px;align-items:flex-start;text-align:left;font-size:12px;color:#50585c}.ta-check input{width:20px;height:20px;accent-color:var(--yellow)}
+.ta-option-list{display:grid;gap:7px}.ta-option{display:grid;grid-template-columns:22px 1fr;gap:9px;padding:10px;border:1px solid #e1e7e4;border-radius:13px;text-align:left}.ta-option input{width:18px;height:18px;accent-color:var(--yellow)}.ta-option span{display:grid}.ta-option strong{font-size:12px}.ta-option small{font-size:10px;color:#7d8589}
+.as-main.v39-main{grid-template-columns:1fr 1fr}.as-main.v39-main button{min-height:98px;padding:15px}.as-main.v39-main strong{font-size:15px}.as-main.v39-main span{font-size:10px;line-height:1.35}
+.v39-learner-tools{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:9px}.v39-learner-tools label{display:grid;gap:4px}.v39-learner-tools label>span{font-size:8px;font-weight:900;color:#6e7b80;letter-spacing:.06em}.v39-learner-tools input{min-height:46px;border:1px solid #dce5e1;border-radius:13px;background:#fff;padding:9px 12px;font:15px/1.3 inherit;box-sizing:border-box}.v39-learner-tools>button{align-self:end;min-height:46px;border:0;border-radius:13px;background:#111;color:#fff;padding:9px 13px;font:inherit;font-size:11px;font-weight:850}
+.v39-learner-list{display:grid;gap:5px}.v39-learner-row{width:100%;min-height:70px;border:1px solid #e1e8e4;border-radius:15px;background:#fff;color:#172127;padding:10px 11px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;font:inherit}.v39-learner-row>span{display:grid;gap:2px;min-width:0}.v39-learner-row>span strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v39-learner-row>span small{font-size:9px;color:#6f7a7f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v39-learner-row>i{display:grid;justify-items:end;gap:1px;font-style:normal;min-width:90px}.v39-learner-row>i b{font-size:7px;letter-spacing:.08em;color:#438e69}.v39-learner-row>i strong{font-size:10px;white-space:nowrap}.v39-learner-row>i small{font-size:8px;white-space:nowrap;color:#6f7a7f}
+.v39-empty{text-align:center;padding:25px 8px;display:grid;gap:3px}.v39-empty strong{font-size:13px}.v39-empty span{font-size:9px;color:#748085}
+@media(max-width:430px){.ta-menu,.ta-choices,.ta-row,.ta-actions{grid-template-columns:1fr}#samosOverlay .evia-stage{height:clamp(100px,17vh,132px)}}
+@media(max-width:390px){.as-main.v39-main{grid-template-columns:1fr}.as-main.v39-main button{min-height:88px;padding:12px}.v39-learner-tools{grid-template-columns:1fr auto}.v39-learner-row>i{min-width:82px}}
+
+/* Secondary Samos screens use Tilos staff page/card/form/list classes unchanged in geometry. */
+body:not(.samos-home-centred) #samosFacePanel{display:none!important}
+body:not(.samos-home-centred) #staffApp{position:static!important;transform:none!important;width:auto!important;margin:0!important;padding:0!important}
+body:not(.samos-home-centred){overflow:auto!important}
+body:not(.samos-home-centred) main{min-height:100dvh!important;overflow:visible!important}
+.staff-page-head{margin-top:5px!important}
+.blue-button{background:var(--yellow)!important;color:#fff!important}
+.soft-button{border-color:#cfe4d7!important;color:#315448!important}
+.staff-back{border-color:#d8e7dd!important;color:#365248!important}
+.staff-card{border-color:#d7e7dd!important;box-shadow:0 6px 18px rgba(25,84,56,.04)!important}
+.staff-form input:focus,.staff-form select:focus,.staff-form textarea:focus{border-color:var(--yellow)!important;box-shadow:0 0 0 3px rgba(99,196,149,.14)!important}
+.segmented{background:#edf5f0!important}.segmented button.active{color:#438e69!important}.status-pill{background:#eaf8f0!important;color:#438e69!important}
+.learner-row small{color:#718096}.mini-progress b{color:#4da979!important}
+.learner-hero{background:linear-gradient(145deg,#e8f8ef,#f9fdfb)!important;border-color:#cae9d6!important}.learner-hero strong{color:#4da979!important}
+.course-lock{background:#eef9f3!important;border-color:#cfead9!important}.course-lock small{color:#4da979!important}
+.text-button{color:#438e69!important}
+
+/* Samos-specific Tilos-style records/registers/resources. */
+.samos-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.samos-section-head h2{margin:0;font-size:15px}.samos-section-head small{font-size:10px;color:#718096}
+.samos-row{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;border:0;border-bottom:1px solid #e2ede7;background:#fff;padding:13px 5px;color:#17212b;font:inherit}.samos-row:last-child{border-bottom:0}.samos-row>span{min-width:0}.samos-row strong,.samos-row small,.samos-row em{display:block}.samos-row strong{font-size:14px}.samos-row small{font-size:10px;color:#718096;margin-top:3px}.samos-row em{font-size:9px;color:#4da979;font-style:normal;font-weight:800;margin-top:3px}.samos-row>b{font-size:22px;color:var(--yellow)}
+.samos-empty{text-align:center;padding:28px 12px;color:#718096}.samos-empty strong{color:#40564d;display:block;margin-bottom:5px}.samos-empty p{font-size:11px;line-height:1.45;margin:0}
+.register-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:8px 0 12px}.register-summary>div,.register-summary>button{min-width:0;border:1px solid #dbe9e0;border-radius:14px;background:#fff;padding:10px 4px;color:#17212b;text-align:center;font:inherit}.register-summary strong,.register-summary span{display:block}.register-summary strong{font-size:19px;color:#4da979}.register-summary span{font-size:9px;color:#718096;margin-top:2px}.register-summary button{font-size:9px;font-weight:800;color:#438e69}
+.attendance-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 0;border-top:1px solid #e2ede7}.attendance-row:first-child{border-top:0}.attendance-name strong,.attendance-name small{display:block}.attendance-name strong{font-size:13px}.attendance-name small{font-size:9px;color:#718096;margin-top:3px}.attendance-controls{display:flex;gap:5px}.attendance-controls button{width:37px;height:37px;border:1px solid #d8e3dd;border-radius:11px;background:#fff;color:#6a7370;font:800 11px/1 inherit}.attendance-controls button.active{background:var(--yellow);border-color:var(--yellow);color:#fff}.late-field{display:flex;align-items:center;gap:5px;margin-top:7px}.late-field input{width:65px!important;min-height:34px!important;margin:0!important;padding:5px 8px!important;font-size:12px!important}.late-field span{font-size:9px;color:#718096}
+.resource-filter{display:flex;gap:7px;overflow:auto;margin:0 0 10px}.resource-filter button{min-height:38px;border:1px solid #d8e4dd;border-radius:999px;background:#fff;color:#61736a;padding:7px 12px;font:inherit;font-size:10px;font-weight:800;white-space:nowrap}.resource-filter button.active{background:var(--yellow);color:#fff;border-color:var(--yellow)}
+.assign-list{display:grid;gap:2px}.assign-option{display:grid!important;grid-template-columns:22px 1fr!important;gap:9px!important;align-items:center!important;padding:10px 2px!important;margin:0!important;border-bottom:1px solid #edf2ef}.assign-option input{width:18px!important;height:18px!important;margin:0!important;accent-color:var(--yellow)}.assign-option strong,.assign-option span{display:block}.assign-option strong{font-size:12px}.assign-option span{font-size:9px;color:#718096;margin-top:2px}
+.samos-dialog{width:min(480px,94vw);height:auto;max-height:88vh;border:0;border-radius:22px;padding:20px;background:#f8fcfa;overflow:auto}.samos-dialog::backdrop{background:#0007}.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.dialog-head small{font-size:9px;font-weight:900;letter-spacing:.08em;color:#4da979}.dialog-head h2{font-size:23px;margin:2px 0}.dialog-close{width:40px;height:40px;border:1px solid #d8e7dd;border-radius:50%;background:#fff;color:#365248;font-size:20px}.danger-hidden{display:none!important}.danger-hidden.show{display:inline-flex!important;color:#a44949!important}
+#saveToast{background:#111!important;color:#fff!important}
+
+/* Tilos-like resource cards and split actions. */
+.samos-actions{display:grid;gap:0}.samos-action{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;border:1px solid #d7e7dd;border-radius:18px;background:#fff;color:#17212b;padding:15px 16px;margin:9px 0;box-shadow:0 7px 20px rgba(27,111,69,.06);font:inherit}.samos-action span{min-width:0}.samos-action small,.samos-action strong,.samos-action em{display:block}.samos-action small{font-size:9px;font-weight:900;letter-spacing:.08em;color:#4da979}.samos-action strong{font-size:18px;margin:4px 0}.samos-action em{font-size:11px;line-height:1.4;color:#718096;font-style:normal}.samos-action>b{font-size:28px;color:#4da979}
+
+@media(max-width:420px){.register-summary{gap:5px}.register-summary span{font-size:8px}.samos-dialog{padding:16px}.attendance-row{grid-template-columns:1fr}.attendance-controls{justify-content:flex-start}}

@@ -1,279 +1,136 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#63c495">
   <meta name="application-name" content="Samos">
-  <meta name="samos-build" content="0.7.0">
+  <meta name="samos-build" content="0.8.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Samos">
-  <title>Samos · Classroom Assistant</title>
-  <link rel="manifest" href="manifest.webmanifest?v=0.7.0">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=0.7.0">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=0.7.0">
-  <link rel="stylesheet" href="styles.css?v=0.7.0">
+  <link rel="manifest" href="manifest.json?v=0.8.0">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=0.8.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=0.8.0">
+  <link rel="stylesheet" href="style.css?v=0.8.0">
+  <link rel="stylesheet" href="staff-style.css?v=0.8.0">
+  <link rel="stylesheet" href="samos-theme.css?v=0.8.0">
+  <title>Samos</title>
 </head>
-<body class="home-mode">
-  <div class="app-shell">
+<body class="staff-mode samos-home-centred">
+  <main>
     <header class="app-header">
       <div class="app-brand">
-        <button class="brand-block" id="brandHomeBtn" type="button" aria-label="Samos home">
-          <b class="brand-name brand-word" aria-label="Samos">Sam<span class="brand-o">o</span>s</b>
-        </button>
-        <small class="assistant-label">Classroom assistant</small>
+        <b class="brand-word" id="samosBrand" aria-label="Samos">Sam<span class="brand-o" aria-hidden="true">o</span>s</b>
+        <small class="assessor-label">Classroom assistant</small>
         <nav class="header-utility-actions" aria-label="Samos help and profile">
-          <button class="text-link" id="helpBtn" type="button">Help/Samos</button>
-          <button class="text-link" id="profileBtn" type="button">Profile</button>
+          <button type="button" id="helpButton">Help/Samos</button>
+          <button type="button" id="profileButton">Profile</button>
         </nav>
+      </div>
+      <div class="header-actions">
+        <button id="installApp" class="install-button" type="button" hidden>Install</button>
       </div>
     </header>
 
-    <main id="mainContent">
-      <section class="view home-view active" data-view="home">
-        <section class="home-assistant-panel" aria-label="Samos classroom assistant">
-          <div class="home-samos-space">
-            <div class="home-samos-stage">
-              <button class="samos-face-button samos-face" id="samosFaceButton" type="button" aria-label="Open Samos classroom assistant">
-                <span class="samos-eyes" id="samosFace">
-                  <span class="eye left"></span>
-                  <span class="eye right"></span>
-                </span>
-              </button>
-            </div>
-          </div>
-          <div class="assistant-home-copy">
-            <strong>Classroom</strong>
-            <span>Learners · Registers · Resources</span>
-          </div>
-        </section>
-      </section>
-
-      <section class="view detail-view" data-view="learners">
-        <div class="detail-topbar">
-          <button class="back-home" data-back-home type="button">←</button>
-          <div><p class="eyebrow">CLASSROOM</p><h2>Learners</h2></div>
-          <button class="primary compact" id="createLearnerBtn" type="button">+ Learner</button>
-        </div>
-        <section class="panel learner-directory-panel">
-          <div class="section-heading">
-            <div><p class="eyebrow">LEARNER DIRECTORY</p><h3>All learners</h3></div>
-            <span class="count-pill" id="learnerDirectoryCount">0</span>
-          </div>
-          <div class="directory-list" id="learnerDirectory"></div>
-        </section>
-      </section>
-
-      <section class="view detail-view" data-view="registers">
-        <div class="detail-topbar">
-          <button class="back-home" data-back-home type="button">←</button>
-          <div><p class="eyebrow">ATTENDANCE</p><h2>Registers</h2></div>
-          <button class="primary compact" id="newRegisterBtn" type="button">+ Register</button>
-        </div>
-
-        <div class="segmented" aria-label="Register view">
-          <button class="segment active" id="todayRegisterTab" type="button">Today</button>
-          <button class="segment" id="registerListTab" type="button">Registers</button>
-        </div>
-
-        <section id="todayRegisterSection">
-          <div class="class-strip" id="classStrip"></div>
-
-          <section class="panel empty-panel" id="noClassPanel">
-            <div class="empty-icon">+</div>
-            <h3>Create your first register</h3>
-            <p>Create a register, then add learners from your learner directory.</p>
-            <button class="primary" id="emptyNewRegisterBtn" type="button">Create register</button>
-          </section>
-
-          <section class="panel register-panel hidden" id="registerPanel">
-            <div class="register-head">
-              <div>
-                <p class="eyebrow" id="registerDate"></p>
-                <h3 id="activeClassName">Register</h3>
-                <p class="muted" id="activeClassMeta"></p>
-              </div>
-              <div class="register-actions">
-                <button class="secondary compact" id="editRegisterBtn" type="button">Edit</button>
-                <button class="primary compact" id="assignLearnersBtn" type="button">+ Learners</button>
-              </div>
-            </div>
-
-            <div class="attendance-summary">
-              <div><strong id="summaryPresent">0</strong><span>Present</span></div>
-              <div><strong id="summaryLate">0</strong><span>Late</span></div>
-              <div><strong id="summaryAbsent">0</strong><span>Absent</span></div>
-              <button class="mark-all" id="markAllBtn" type="button">Mark all present</button>
-            </div>
-
-            <div class="learner-list" id="learnerList"></div>
-            <div class="save-row">
-              <span id="saveState">Changes save automatically</span>
-              <button class="primary" id="finishRegisterBtn" type="button">Finish register</button>
-            </div>
-          </section>
-        </section>
-
-        <section id="registerListSection" class="hidden">
-          <div class="register-template-list" id="registerTemplateList"></div>
-          <section class="history-section">
-            <div class="section-heading">
-              <h3>Completed registers</h3>
-              <button class="text-link subtle" id="clearHistoryBtn" type="button">Clear</button>
-            </div>
-            <div id="historyList" class="history-list"></div>
-          </section>
-        </section>
-      </section>
-
-      <section class="view detail-view" data-view="resources">
-        <div class="detail-topbar">
-          <button class="back-home" data-back-home type="button">←</button>
-          <div><p class="eyebrow">TEACHING</p><h2>Resources</h2></div>
-          <button class="primary compact" id="createResourceBtn" type="button">+ Create</button>
-        </div>
-        <div class="resource-actions">
-          <button class="secondary" id="uploadResourceBtn" type="button">Upload resource</button>
-          <input id="resourceFileInput" type="file" hidden accept=".ppt,.pptx,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt">
-        </div>
-        <div class="resource-filter-row" id="resourceFilterRow">
-          <button class="resource-filter active" data-resource-filter="all" type="button">All</button>
-          <button class="resource-filter" data-resource-filter="powerpoint" type="button">PowerPoints</button>
-          <button class="resource-filter" data-resource-filter="lesson-plan" type="button">Lesson plans</button>
-          <button class="resource-filter" data-resource-filter="other" type="button">Other</button>
-        </div>
-        <section class="panel resource-panel">
-          <div class="section-heading">
-            <div><p class="eyebrow">RESOURCE LIBRARY</p><h3 id="resourceHeading">All resources</h3></div>
-            <span class="count-pill" id="resourceCount">0</span>
-          </div>
-          <div class="resource-list" id="resourceList"></div>
-        </section>
-      </section>
-
-      <section class="view detail-view" data-view="games">
-        <div class="detail-topbar">
-          <button class="back-home" data-back-home type="button">←</button>
-          <div><p class="eyebrow">ACTIVITIES</p><h2>Games</h2></div>
-          <span class="detail-spacer"></span>
-        </div>
-        <section class="placeholder-panel">
-          <h3>Classroom games</h3>
-          <p>Quizzes, random pickers, team games and quick recap activities will be added here.</p>
-        </section>
-      </section>
-    </main>
-
-    <nav class="metrics-nav" aria-label="Main sections">
-      <button class="metric-tab active" data-section="registers" type="button">
-        <span class="metric-label">REGISTERS</span>
-        <span class="meter-wrap"><svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true"><path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path><path class="meter-progress" id="meter-registers" d="M10 60 A50 50 0 0 1 110 60"></path></svg></span>
-        <span class="metric-value" id="value-registers">0%</span>
-      </button>
-      <button class="metric-tab" data-section="lessons" type="button">
-        <span class="metric-label">LESSONS</span>
-        <span class="meter-wrap"><svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true"><path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path><path class="meter-progress" id="meter-lessons" d="M10 60 A50 50 0 0 1 110 60"></path></svg></span>
-        <span class="metric-value" id="value-lessons">0%</span>
-      </button>
-      <button class="metric-tab" data-section="slides" type="button">
-        <span class="metric-label">SLIDES</span>
-        <span class="meter-wrap"><svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true"><path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path><path class="meter-progress" id="meter-slides" d="M10 60 A50 50 0 0 1 110 60"></path></svg></span>
-        <span class="metric-value" id="value-slides">0%</span>
-      </button>
-      <button class="metric-tab" data-section="games" type="button">
-        <span class="metric-label">GAMES</span>
-        <span class="meter-wrap"><svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true"><path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path><path class="meter-progress" id="meter-games" d="M10 60 A50 50 0 0 1 110 60"></path></svg></span>
-        <span class="metric-value" id="value-games">0%</span>
-      </button>
-    </nav>
-  </div>
-
-  <section class="samos-menu-overlay" id="samosMenuOverlay" aria-hidden="true" aria-label="Samos classroom assistant">
-    <div class="samos-menu-shell" role="dialog" aria-modal="true" aria-labelledby="samosMenuTitle">
-      <div class="samos-menu-topbar">
-        <button class="samos-menu-back hidden" id="samosMenuBack" type="button" aria-label="Back">←</button>
-        <span></span>
-        <button class="samos-menu-close" id="samosMenuClose" type="button" aria-label="Close Samos">×</button>
-      </div>
-      <div class="samos-menu-stage" aria-hidden="true">
-        <div class="samos-face menu-face">
-          <span class="samos-eyes"><span class="eye left"></span><span class="eye right"></span></span>
+    <section class="progress-panel staff-face-panel" id="samosFacePanel" aria-label="Samos classroom assistant">
+      <div class="home-evia-space">
+        <div class="home-evia-stage">
+          <button class="evia-face" id="eviaFace" type="button" aria-label="Open Samos classroom assistant">
+            <div class="evia-eyes"><span class="evia-eye eye-left"></span><span class="evia-eye eye-right"></span></div>
+          </button>
         </div>
       </div>
-      <div class="samos-menu-copy">
-        <p class="samos-greeting">Samos</p>
-        <h2 id="samosMenuTitle">What would you like to do?</h2>
-        <p id="samosMenuHint">Classroom workspace.</p>
+      <div class="staff-face-copy"><strong>Classroom</strong><span>Learners · Registers · Resources · Games</span></div>
+    </section>
+
+    <section id="staffApp" aria-live="polite"></section>
+  </main>
+
+  <section class="evia-overlay" id="samosOverlay" aria-hidden="true" aria-label="Samos classroom assistant">
+    <div class="evia-wizard" role="dialog" aria-modal="true" aria-labelledby="samosPrompt">
+      <div class="evia-toolbar">
+        <button id="samosBack" type="button" aria-label="Back">&#8592;</button>
+        <button id="samosClose" type="button" aria-label="Close Samos">&#215;</button>
       </div>
-      <div class="samos-menu-content" id="samosMenuContent"></div>
+      <div class="evia-stage">
+        <div class="evia-face" aria-hidden="true">
+          <div class="evia-eyes"><span class="evia-eye eye-left"></span><span class="evia-eye eye-right"></span></div>
+        </div>
+      </div>
+      <div class="evia-copy" aria-live="polite">
+        <p class="evia-greeting">Samos</p>
+        <h2 id="samosPrompt">What do you need?</h2>
+        <p id="samosHint">Everything is organised into four clear areas.</p>
+      </div>
+      <div id="samosContent"></div>
     </div>
   </section>
 
-  <dialog id="registerDialog" class="sheet-dialog">
-    <form method="dialog" id="registerForm" class="sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title"><h3 id="registerDialogTitle">New register</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
-      <label>Register name<input id="registerNameInput" maxlength="50" required placeholder="e.g. Level 2 Bricklaying"></label>
-      <div class="two-col">
-        <label>Day<select id="registerDayInput"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label>
-        <label>Room<input id="registerRoomInput" maxlength="30" placeholder="e.g. Workshop 2"></label>
-      </div>
-      <div class="two-col">
-        <label>Start<input type="time" id="registerStartInput" value="09:00"></label>
-        <label>Finish<input type="time" id="registerEndInput" value="16:00"></label>
-      </div>
-      <div class="sheet-actions">
-        <button type="button" class="danger hidden" id="deleteRegisterBtn">Delete register</button>
-        <button type="submit" class="primary">Save register</button>
-      </div>
+  <dialog id="learnerDialog" class="samos-dialog">
+    <form method="dialog" id="learnerForm" class="staff-form">
+      <div class="dialog-head"><div><small>CLASSROOM</small><h2>Add learner</h2></div><button value="cancel" class="dialog-close" aria-label="Close">×</button></div>
+      <section class="staff-card">
+        <label>Learner name<input id="learnerNameInput" maxlength="60" required autocomplete="name" placeholder="Full name"></label>
+        <label>Optional learner ID<input id="learnerIdInput" maxlength="30" placeholder="College / learner ID"></label>
+      </section>
+      <button type="submit" class="blue-button full">Save learner</button>
     </form>
   </dialog>
 
-  <dialog id="learnerDialog" class="sheet-dialog">
-    <form method="dialog" id="learnerForm" class="sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title"><h3>Create learner</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
-      <label>Learner name<input id="learnerNameInput" maxlength="60" required placeholder="Full name"></label>
-      <label>Optional learner ID<input id="learnerIdInput" maxlength="30" placeholder="College / learner ID"></label>
-      <button type="submit" class="primary full">Create learner</button>
+  <dialog id="registerDialog" class="samos-dialog">
+    <form method="dialog" id="registerForm" class="staff-form">
+      <div class="dialog-head"><div><small>ATTENDANCE</small><h2 id="registerDialogTitle">New register</h2></div><button value="cancel" class="dialog-close" aria-label="Close">×</button></div>
+      <section class="staff-card">
+        <label>Register name<input id="registerNameInput" maxlength="50" required placeholder="e.g. Level 2 Bricklaying"></label>
+        <div class="form-grid">
+          <label>Day<select id="registerDayInput"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label>
+          <label>Room<input id="registerRoomInput" maxlength="30" placeholder="e.g. Workshop 2"></label>
+          <label>Start<input type="time" id="registerStartInput" value="09:00"></label>
+          <label>Finish<input type="time" id="registerEndInput" value="16:00"></label>
+        </div>
+      </section>
+      <div class="inline-actions"><button type="button" class="soft-button danger-hidden" id="deleteRegisterBtn">Delete register</button><button type="submit" class="blue-button">Save register</button></div>
     </form>
   </dialog>
 
-  <dialog id="assignLearnersDialog" class="sheet-dialog">
-    <form method="dialog" id="assignLearnersForm" class="sheet tall-sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title"><h3>Add learners</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
-      <p class="sheet-copy">Choose learners from the learner directory for this register.</p>
-      <div class="assign-list" id="assignLearnersList"></div>
-      <button type="submit" class="primary full">Add selected learners</button>
+  <dialog id="assignDialog" class="samos-dialog">
+    <form method="dialog" id="assignForm" class="staff-form">
+      <div class="dialog-head"><div><small>REGISTER</small><h2>Add learners</h2></div><button value="cancel" class="dialog-close" aria-label="Close">×</button></div>
+      <section class="staff-card"><div id="assignLearnerList" class="assign-list"></div></section>
+      <button type="submit" class="blue-button full">Add selected learners</button>
     </form>
   </dialog>
 
-  <dialog id="resourceDialog" class="sheet-dialog">
-    <form method="dialog" id="resourceForm" class="sheet tall-sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title"><h3>Create resource</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
-      <label>Resource type<select id="resourceTypeInput"><option value="lesson-plan">Lesson plan</option><option value="powerpoint">PowerPoint</option><option value="other">Other</option></select></label>
-      <label>Title<input id="resourceTitleInput" maxlength="80" required placeholder="e.g. Cavity walling lesson"></label>
-      <label>Notes<textarea id="resourceNotesInput" rows="6" maxlength="5000" placeholder="Add objectives, timings, activities, notes or resource details..."></textarea></label>
-      <button type="submit" class="primary full">Save resource</button>
+  <dialog id="resourceDialog" class="samos-dialog">
+    <form method="dialog" id="resourceForm" class="staff-form">
+      <div class="dialog-head"><div><small>RESOURCE</small><h2>Create resource</h2></div><button value="cancel" class="dialog-close" aria-label="Close">×</button></div>
+      <section class="staff-card">
+        <label>Type<select id="resourceTypeInput"><option value="lesson-plan">Lesson plan</option><option value="powerpoint">PowerPoint</option><option value="other">Other resource</option></select></label>
+        <label>Title<input id="resourceTitleInput" maxlength="80" required placeholder="Resource title"></label>
+        <label>Notes<textarea id="resourceNotesInput" rows="6" placeholder="Add teaching notes, objectives or content"></textarea></label>
+      </section>
+      <button type="submit" class="blue-button full">Save resource</button>
     </form>
   </dialog>
 
-  <dialog id="settingsDialog" class="sheet-dialog">
-    <form method="dialog" class="sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title"><h3>Profile</h3><button value="cancel" class="close-btn" aria-label="Close">×</button></div>
-      <label>Your name<input id="teacherNameInput" maxlength="40" placeholder="Optional"></label>
-      <label>Centre / room base<input id="centreInput" maxlength="50" placeholder="Optional"></label>
-      <div class="sheet-actions single"><button type="button" class="primary" id="saveSettingsBtn">Save profile</button></div>
+  <dialog id="profileDialog" class="samos-dialog">
+    <form method="dialog" id="profileForm" class="staff-form">
+      <div class="dialog-head"><div><small>SAMOS</small><h2>Profile</h2></div><button value="cancel" class="dialog-close" aria-label="Close">×</button></div>
+      <section class="staff-card">
+        <label>Your name<input id="teacherNameInput" maxlength="40" placeholder="Optional"></label>
+        <label>Centre / department<input id="centreInput" maxlength="60" placeholder="Optional"></label>
+      </section>
+      <button type="submit" class="blue-button full">Save profile</button>
     </form>
   </dialog>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script>window.SAMOS_BUILD='0.7.0';</script>
-  <script src="app.js?v=0.7.0"></script>
-  <script src="naxos-controller.js?v=0.7.0"></script>
+  <input id="resourceFileInput" type="file" hidden accept=".ppt,.pptx,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt">
+  <div class="save-toast" id="saveToast" role="status">Saved</div>
+
+  <script>window.SAMOS_BUILD='0.8.0';</script>
+  <script src="evia-animations.js?v=0.8.0"></script>
+  <script src="app.js?v=0.8.0"></script>
+  <script src="naxos-controller.js?v=0.8.0"></script>
 </body>
 </html>
