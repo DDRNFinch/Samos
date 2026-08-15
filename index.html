@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#7d9d8c">
+  <meta name="theme-color" content="#809c8f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Samos">
@@ -15,115 +15,47 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <div class="brand-wrap" role="img" aria-label="Samos">
-        <div class="brand-name">Sam<span class="brand-o" aria-hidden="true"></span>s</div>
-        <div class="brand-sub">Classroom Assistant</div>
-      </div>
-      <div class="topbar-actions">
-        <button class="class-pill" id="homeClassPill" type="button">All classes</button>
-        <button class="round-btn" id="settingsBtn" aria-label="Settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.1 3.5c0-.5-.05-.98-.14-1.45l2.02-1.57-2-3.46-2.47.99a8.22 8.22 0 0 0-2.5-1.45L14.65 2h-4l-.37 2.56a8.3 8.3 0 0 0-2.5 1.45l-2.46-.99-2 3.46 2.01 1.57A8.1 8.1 0 0 0 5.2 12c0 .5.05.98.14 1.45l-2.02 1.57 2 3.46 2.47-.99a8.22 8.22 0 0 0 2.5 1.45l.36 2.56h4l.37-2.56a8.3 8.3 0 0 0 2.5-1.45l2.46.99 2-3.46-2.01-1.57c.09-.47.14-.96.14-1.45Z"/></svg>
-        </button>
-      </div>
+    <header class="app-header">
+      <button class="brand-block" id="brandHomeBtn" type="button" aria-label="Go to home screen">
+        <div class="brand-name">Sam<span class="brand-o"></span>s</div>
+        <div class="brand-sub">CLASSROOM ASSISTANT</div>
+      </button>
     </header>
 
     <main id="mainContent">
       <section class="view active" data-view="home">
-        <section class="hero-home">
-          <div class="ring-stack" aria-label="Samos helper">
-            <span class="ring ring-a"></span>
-            <span class="ring ring-b"></span>
-            <span class="ring ring-c"></span>
-            <span class="ring ring-d"></span>
-            <div class="samos-face" id="samosFace">
-              <span class="eye left"><i></i></span>
-              <span class="eye right"><i></i></span>
-            </div>
+        <div class="home-actions">
+          <button class="text-link" id="helpBtn" type="button">Help / Samos</button>
+          <button class="text-link" id="profileBtn" type="button">Edit profile</button>
+        </div>
+
+        <section class="assistant-zone">
+          <div class="samos-face" id="samosFace" aria-label="Samos assistant">
+            <span class="eye left"><i></i></span>
+            <span class="eye right"><i></i></span>
           </div>
-          <div class="assistant-line">Samos is here to help</div>
-          <div class="assistant-copy" id="assistantMessage">I’ll help you manage teaching, registers and classroom organisation.</div>
         </section>
 
-        <section class="metric-row">
-          <article class="metric-card">
-            <div class="metric-icon green">
-              <svg viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v14l-4-2.5L12 20l-4-2.5L4 20V6a2 2 0 0 1 2-2Zm2 4h8m-8 4h8"/></svg>
-            </div>
-            <div>
-              <p>Classes</p>
-              <strong id="classCount">0</strong>
-              <span id="classMetricDetail">Ready to teach</span>
-            </div>
-          </article>
-          <article class="metric-card">
-            <div class="metric-icon blue">
-              <svg viewBox="0 0 24 24"><path d="M12 5v7l4 2m4-2a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
-            </div>
-            <div>
-              <p>Learners</p>
-              <strong id="learnerCount">0</strong>
-              <span id="learnerMetricDetail">Across all classes</span>
-            </div>
-          </article>
-          <article class="metric-card">
-            <div class="metric-icon amber">
-              <svg viewBox="0 0 24 24"><path d="M12 7v5l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-            </div>
-            <div>
-              <p>Today</p>
-              <strong id="presentCount">0</strong>
-              <span id="presentMetricDetail">Marked in</span>
-            </div>
-          </article>
-          <article class="metric-card">
-            <div class="metric-icon purple">
-              <svg viewBox="0 0 24 24"><path d="M4 7h16v10H4zM8 4v3m8-3v3M7 11h3m4 0h3m-10 4h3m4 0h3"/></svg>
-            </div>
-            <div>
-              <p>Registers</p>
-              <strong id="historyCount">0</strong>
-              <span id="historyMetricDetail">Saved this device</span>
-            </div>
-          </article>
-        </section>
-
-        <button class="portfolio-card" type="button" data-open-view="registers">
-          <div class="portfolio-icon">
-            <svg viewBox="0 0 24 24"><path d="M7 4h8l4 4v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm7 1v4h4M8 13h8M8 17h6"/></svg>
+        <button class="focus-card" id="focusCard" type="button">
+          <div class="focus-copy">
+            <span class="focus-kicker" id="focusKicker">TODAY'S REGISTER</span>
+            <strong id="focusTitle">Create your first class</strong>
+            <span id="focusText">Add a class, add learners and start taking registers.</span>
           </div>
-          <div class="portfolio-text">
-            <strong>Open Registers</strong>
-            <span>Preview classes, learners and today’s attendance.</span>
-          </div>
-          <div class="portfolio-arrow">›</div>
+          <span class="focus-arrow">›</span>
         </button>
-
-        <section class="summary-card">
-          <div class="summary-head">
-            <div>
-              <p class="eyebrow">CLASSROOM OVERVIEW</p>
-              <h3 id="summaryCardTitle">No class selected</h3>
-            </div>
-            <span class="summary-percentage" id="summaryPercent">0%</span>
-          </div>
-          <p class="summary-copy" id="summaryCardCopy">Create a class to start using Samos for classroom registers.</p>
-          <div class="summary-progress"><span id="summaryProgressBar"></span></div>
-          <div class="summary-chips">
-            <span class="summary-chip present">Present <b id="summaryPresentHome">0</b></span>
-            <span class="summary-chip late">Late <b id="summaryLateHome">0</b></span>
-            <span class="summary-chip absent">Absent <b id="summaryAbsentHome">0</b></span>
-          </div>
-        </section>
       </section>
 
       <section class="view" data-view="registers">
-        <div class="view-title">
-          <div>
-            <p class="eyebrow">ATTENDANCE</p>
-            <h2>Registers</h2>
-          </div>
-          <button class="primary compact" id="newClassBtn">+ Class</button>
+        <div class="detail-head">
+          <p class="eyebrow">ATTENDANCE</p>
+          <h2>Registers</h2>
+          <p class="detail-copy">Create classes, add learners and save attendance on this device.</p>
+        </div>
+
+        <div class="detail-toolbar">
+          <button class="secondary compact" id="newClassBtn">+ Class</button>
+          <button class="secondary compact" id="homeFromRegistersBtn">Home</button>
         </div>
 
         <div class="class-strip" id="classStrip"></div>
@@ -165,49 +97,92 @@
         <section class="history-section">
           <div class="section-heading simple">
             <h3>Recent registers</h3>
-            <button class="text-btn" id="clearHistoryBtn">Clear</button>
+            <button class="text-link subtle" id="clearHistoryBtn" type="button">Clear</button>
           </div>
           <div id="historyList" class="history-list"></div>
         </section>
       </section>
 
       <section class="view" data-view="lessons">
-        <div class="placeholder-view">
-          <div class="mini-samos"><span></span><span></span></div>
-          <p class="eyebrow">COMING NEXT</p>
+        <div class="detail-head">
+          <p class="eyebrow">PLANNING</p>
           <h2>Lesson Plans</h2>
-          <p>Create lesson plans, add PowerPoints and organise classroom resources in one place.</p>
-          <div class="placeholder-card"><strong>Planned for the next build</strong><span>Objectives · activities · timings · resources · PowerPoints · review</span></div>
+          <p class="detail-copy">Create, organise and reuse lesson plans with Samos.</p>
         </div>
+        <section class="placeholder-panel">
+          <h3>Ready for the next build</h3>
+          <p>Objectives, timings, resources, PowerPoints and activities will live here.</p>
+          <button class="secondary" id="homeFromLessonsBtn" type="button">Back home</button>
+        </section>
+      </section>
+
+      <section class="view" data-view="slides">
+        <div class="detail-head">
+          <p class="eyebrow">PRESENTATION</p>
+          <h2>Slides</h2>
+          <p class="detail-copy">Keep PowerPoints and classroom presentation resources in one place.</p>
+        </div>
+        <section class="placeholder-panel">
+          <h3>Presentation tools coming next</h3>
+          <p>Upload, organise and launch slides directly from Samos.</p>
+          <button class="secondary" id="homeFromSlidesBtn" type="button">Back home</button>
+        </section>
       </section>
 
       <section class="view" data-view="games">
-        <div class="placeholder-view">
-          <div class="mini-samos"><span></span><span></span></div>
-          <p class="eyebrow">COMING NEXT</p>
-          <h2>Classroom Games</h2>
-          <p>Quick games and activities for recap, questioning and whole-class participation.</p>
-          <div class="placeholder-card"><strong>Built for the classroom</strong><span>Quizzes · random picker · team games · quick checks</span></div>
+        <div class="detail-head">
+          <p class="eyebrow">ACTIVITIES</p>
+          <h2>Games</h2>
+          <p class="detail-copy">Quick classroom games and recap activities will live here.</p>
         </div>
+        <section class="placeholder-panel">
+          <h3>Classroom games coming next</h3>
+          <p>Quizzes, random pickers and team games will be added here.</p>
+          <button class="secondary" id="homeFromGamesBtn" type="button">Back home</button>
+        </section>
       </section>
     </main>
 
-    <nav class="arch-nav" aria-label="Main navigation">
-      <button class="arch active" data-nav="home" aria-label="Home">
-        <svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20H4zM9 20v-6h6v6"/></svg>
-        <span>Home</span>
+    <nav class="metrics-nav" aria-label="Main sections">
+      <button class="metric-tab active" data-section="registers" type="button">
+        <span class="metric-label">REGISTERS</span>
+        <span class="meter-wrap">
+          <svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true">
+            <path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path>
+            <path class="meter-progress" id="meter-registers" d="M10 60 A50 50 0 0 1 110 60"></path>
+          </svg>
+        </span>
+        <span class="metric-value" id="value-registers">0%</span>
       </button>
-      <button class="arch" data-nav="registers" aria-label="Registers">
-        <svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v16l-5-3-4 3-4-3-5 3V5a2 2 0 0 1 2-2Zm3 5h8M8 12h8"/></svg>
-        <span>Registers</span>
+      <button class="metric-tab" data-section="lessons" type="button">
+        <span class="metric-label">LESSONS</span>
+        <span class="meter-wrap">
+          <svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true">
+            <path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path>
+            <path class="meter-progress" id="meter-lessons" d="M10 60 A50 50 0 0 1 110 60"></path>
+          </svg>
+        </span>
+        <span class="metric-value" id="value-lessons">0%</span>
       </button>
-      <button class="arch" data-nav="lessons" aria-label="Lesson plans">
-        <svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Zm16 0A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5v-16Z"/></svg>
-        <span>Lessons</span>
+      <button class="metric-tab" data-section="slides" type="button">
+        <span class="metric-label">SLIDES</span>
+        <span class="meter-wrap">
+          <svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true">
+            <path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path>
+            <path class="meter-progress" id="meter-slides" d="M10 60 A50 50 0 0 1 110 60"></path>
+          </svg>
+        </span>
+        <span class="metric-value" id="value-slides">0%</span>
       </button>
-      <button class="arch" data-nav="games" aria-label="Classroom games">
-        <svg viewBox="0 0 24 24"><path d="M8 7h8l3 3 1 8-3 2-3-3h-4l-3 3-3-2 1-8 3-3Zm1 4v4m-2-2h4m5-1h.01m2 2h.01"/></svg>
-        <span>Games</span>
+      <button class="metric-tab" data-section="games" type="button">
+        <span class="metric-label">GAMES</span>
+        <span class="meter-wrap">
+          <svg viewBox="0 0 120 70" class="meter-svg" aria-hidden="true">
+            <path class="meter-track" d="M10 60 A50 50 0 0 1 110 60"></path>
+            <path class="meter-progress" id="meter-games" d="M10 60 A50 50 0 0 1 110 60"></path>
+          </svg>
+        </span>
+        <span class="metric-value" id="value-games">0%</span>
       </button>
     </nav>
   </div>

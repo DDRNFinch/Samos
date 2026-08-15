@@ -1,17 +1,20 @@
 (() => {
   'use strict';
 
-  const STORE_KEY = 'samos.classroom.v2';
+  const STORE_KEY = 'samos.classroom.v3';
   const todayKey = () => new Date().toISOString().slice(0, 10);
   const prettyDate = (date = new Date()) => date.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
   const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+  const METER_LEN = 157;
 
   const defaultState = {
     settings: { teacherName:'', centre:'' },
     classes: [],
     activeClassId: null,
     attendance: {},
-    history: []
+    history: [],
+    activeSection: 'registers',
+    currentView: 'home'
   };
 
   let state = loadState();
@@ -30,13 +33,16 @@
         settings: { ...defaultState.settings, ...(saved.settings || {}) },
         classes: Array.isArray(saved.classes) ? saved.classes : [],
         attendance: saved.attendance || {},
-        history: Array.isArray(saved.history) ? saved.history : []
+        history: Array.isArray(saved.history) ? saved.history : [],
+        activeSection: saved.activeSection || 'registers',
+        currentView: saved.currentView || 'home'
       };
     } catch { return structuredCloneSafe(defaultState); }
   }
 
   function structuredCloneSafe(value){ return JSON.parse(JSON.stringify(value)); }
   function saveState(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); renderAll(); }
+  function persistQuick(message){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); renderAll(); showToast(message); }
   function activeClass(){ return state.classes.find(c => c.id === state.activeClassId) || null; }
   function attendanceKey(classId, date=todayKey()){ return `${classId}:${date}`; }
   function getAttendance(classId){
@@ -53,83 +59,112 @@
     showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
   }
 
-  function navigate(view){
-    $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === view));
-    $$('.arch').forEach(a => a.classList.toggle('active', a.dataset.nav === view));
+  function goHome(){
+    state.currentView = 'home';
+    saveState();
     window.scrollTo({top:0, behavior:'smooth'});
-    if (view === 'registers') renderRegisters();
+  }
+
+  function openSection(section){
+    state.activeSection = section;
+    state.currentView = section;
+    saveState();
+    window.scrollTo({top:0, behavior:'smooth'});
   }
 
   function renderAll(){
+    renderViews();
+    renderMeters();
     renderHome();
     renderRegisters();
     renderHistory();
   }
 
+  function renderViews(){
+    const current = state.currentView || 'home';
+    $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === current));
+    $$('.metric-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.section === state.activeSection));
+  }
+
   function renderHome(){
     const teacher = state.settings.teacherName?.trim();
-    const hour = new Date().getHours();
-    const daypart = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const active = state.activeSection || 'registers';
     const cls = activeClass();
-    const totalLearners = state.classes.reduce((sum,c) => sum + (c.learners?.length || 0), 0);
-
-    $('#classCount').textContent = state.classes.length;
-    $('#learnerCount').textContent = totalLearners;
-    $('#historyCount').textContent = state.history.length;
-    $('#classMetricDetail').textContent = state.classes.length === 1 ? '1 class ready' : `${state.classes.length} classes ready`;
-    $('#learnerMetricDetail').textContent = totalLearners ? 'Across all classes' : 'No learners yet';
-    $('#historyMetricDetail').textContent = state.history.length ? 'Saved this device' : 'Nothing saved yet';
-
+    const stats = registerStats();
     const face = $('#samosFace');
+
+    const focusMap = {
+      registers: {
+        kicker: "TODAY'S REGISTER",
+        title: cls ? cls.name : 'Create your first class',
+        text: cls
+          ? `${stats.markedIn} of ${stats.total} learners marked in today.`
+          : 'Add a class, add learners and start taking registers.'
+      },
+      lessons: {
+        kicker: 'LESSON PLANS',
+        title: 'Build your lesson plans',
+        text: 'Create, organise and reuse lesson plans with Samos.'
+      },
+      slides: {
+        kicker: 'PRESENTATIONS',
+        title: 'Keep your slides together',
+        text: 'Store PowerPoints and classroom presentation resources here.'
+      },
+      games: {
+        kicker: 'CLASSROOM GAMES',
+        title: 'Plan recap activities',
+        text: 'Use Samos for quizzes, team games and quick classroom checks.'
+      }
+    };
+
+    const current = focusMap[active] || focusMap.registers;
+    $('#focusKicker').textContent = current.kicker;
+    $('#focusTitle').textContent = current.title;
+    $('#focusText').textContent = current.text;
+
+    if (teacher) {
+      $('#helpBtn').textContent = `Help / ${teacher.split(' ')[0]}`;
+    } else {
+      $('#helpBtn').textContent = 'Help / Samos';
+    }
+
     if (face?.animate) {
       face.animate([
-        { transform:'translate(-50%,-50%) translateY(0) rotate(0deg)' },
-        { transform:'translate(-50%,-50%) translateY(-4px) rotate(-2deg)' },
-        { transform:'translate(-50%,-50%) translateY(0) rotate(2deg)' },
-        { transform:'translate(-50%,-50%) translateY(0) rotate(0deg)' }
-      ], { duration: 2400, easing:'ease-in-out' });
+        { transform:'translateY(0) scale(1)' },
+        { transform:'translateY(-7px) scale(1.01)' },
+        { transform:'translateY(0) scale(1)' }
+      ], { duration: 2200, easing:'ease-in-out' });
     }
+  }
 
-    if (cls){
-      const att = getAttendance(cls.id);
-      const present = (cls.learners || []).filter(l => att[l.id]?.status === 'present').length;
-      const late = (cls.learners || []).filter(l => att[l.id]?.status === 'late').length;
-      const absent = (cls.learners || []).filter(l => att[l.id]?.status === 'absent').length;
-      const total = cls.learners.length;
-      const completed = total ? Math.round(((present + late + absent) / total) * 100) : 0;
-      const inRoom = present + late;
+  function registerStats(){
+    const cls = activeClass();
+    if (!cls) return { total:0, present:0, late:0, absent:0, marked:0, markedIn:0, percent:0 };
+    const att = getAttendance(cls.id);
+    const total = cls.learners?.length || 0;
+    const present = (cls.learners || []).filter(l => att[l.id]?.status === 'present').length;
+    const late = (cls.learners || []).filter(l => att[l.id]?.status === 'late').length;
+    const absent = (cls.learners || []).filter(l => att[l.id]?.status === 'absent').length;
+    const marked = present + late + absent;
+    const markedIn = present + late;
+    const percent = total ? Math.round((marked / total) * 100) : 0;
+    return { total, present, late, absent, marked, markedIn, percent };
+  }
 
-      $('#presentCount').textContent = inRoom;
-      $('#presentMetricDetail').textContent = total ? `${inRoom} of ${total} marked in` : 'No learners yet';
-      $('#homeClassPill').textContent = cls.name;
-      $('#assistantMessage').textContent = teacher
-        ? `${daypart}, ${teacher}. ${cls.name} is ready, and ${inRoom} of ${total} learners are marked in.`
-        : `${cls.name} is ready, and ${inRoom} of ${total} learners are marked in.`;
+  function setMeter(section, percent){
+    const path = $(`#meter-${section}`);
+    const value = $(`#value-${section}`);
+    if (path) path.style.strokeDashoffset = String(METER_LEN - (Math.max(0, Math.min(100, percent)) / 100) * METER_LEN);
+    if (value) value.textContent = `${Math.round(percent)}%`;
+  }
 
-      $('#summaryCardTitle').textContent = cls.name;
-      $('#summaryCardCopy').textContent = total
-        ? `${cls.day || 'Scheduled class'} · ${cls.start || '09:00'}–${cls.end || '16:00'}${cls.room ? ` · ${cls.room}` : ''}`
-        : 'Add learners to this class to start taking the register.';
-      $('#summaryPercent').textContent = `${completed}%`;
-      $('#summaryProgressBar').style.width = `${completed}%`;
-      $('#summaryPresentHome').textContent = present;
-      $('#summaryLateHome').textContent = late;
-      $('#summaryAbsentHome').textContent = absent;
-    } else {
-      $('#presentCount').textContent = '0';
-      $('#presentMetricDetail').textContent = state.classes.length ? 'Choose a class' : 'No class selected';
-      $('#homeClassPill').textContent = state.classes.length ? 'Choose class' : 'All classes';
-      $('#assistantMessage').textContent = state.classes.length
-        ? 'Choose a class and I’ll help you organise today’s register.'
-        : 'Create a class and I’ll keep your teaching day organised.';
-      $('#summaryCardTitle').textContent = 'No class selected';
-      $('#summaryCardCopy').textContent = 'Create a class to start using Samos for classroom registers.';
-      $('#summaryPercent').textContent = '0%';
-      $('#summaryProgressBar').style.width = '0%';
-      $('#summaryPresentHome').textContent = '0';
-      $('#summaryLateHome').textContent = '0';
-      $('#summaryAbsentHome').textContent = '0';
-    }
+  function renderMeters(){
+    const reg = registerStats().percent;
+    setMeter('registers', reg);
+    setMeter('lessons', 0);
+    setMeter('slides', 0);
+    setMeter('games', 0);
   }
 
   function renderRegisters(){
@@ -174,13 +209,13 @@
           <div class="learner-tools">
             <input class="late-minutes" type="number" min="0" max="240" step="1" value="${Number(record.lateMinutes)||0}" aria-label="Minutes late" ${record.status !== 'late' ? 'disabled' : ''}>
             <span class="muted">min late</span>
-            <button class="remove-learner">Remove</button>
+            <button class="remove-learner" type="button">Remove</button>
           </div>
         </div>
         <div class="attendance-controls">
-          <button class="attendance-btn ${record.status === 'present' ? 'active' : ''}" data-status="present" title="Present">P</button>
-          <button class="attendance-btn ${record.status === 'late' ? 'active' : ''}" data-status="late" title="Late">L</button>
-          <button class="attendance-btn ${record.status === 'absent' ? 'active' : ''}" data-status="absent" title="Absent">A</button>
+          <button class="attendance-btn ${record.status === 'present' ? 'active' : ''}" data-status="present" title="Present" type="button">P</button>
+          <button class="attendance-btn ${record.status === 'late' ? 'active' : ''}" data-status="late" title="Late" type="button">L</button>
+          <button class="attendance-btn ${record.status === 'absent' ? 'active' : ''}" data-status="absent" title="Absent" type="button">A</button>
         </div>`;
 
       $$('.attendance-btn', row).forEach(btn => btn.addEventListener('click', () => {
@@ -215,12 +250,6 @@
     $('#summaryPresent').textContent = statuses.filter(s => s === 'present').length;
     $('#summaryLate').textContent = statuses.filter(s => s === 'late').length;
     $('#summaryAbsent').textContent = statuses.filter(s => s === 'absent').length;
-  }
-
-  function persistQuick(message){
-    localStorage.setItem(STORE_KEY, JSON.stringify(state));
-    renderAll();
-    showToast(message);
   }
 
   function renderHistory(){
@@ -316,8 +345,16 @@
   }
 
   function bindEvents(){
-    $$('.arch').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.nav)));
-    $$('[data-open-view]').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.openView)));
+    $$('.metric-tab').forEach(btn => btn.addEventListener('click', () => openSection(btn.dataset.section)));
+    $('#brandHomeBtn').addEventListener('click', goHome);
+    $('#focusCard').addEventListener('click', () => openSection(state.activeSection || 'registers'));
+    $('#helpBtn').addEventListener('click', () => showToast('Samos will guide classroom teaching and registers.'));
+    $('#profileBtn').addEventListener('click', () => {
+      $('#teacherNameInput').value = state.settings.teacherName || '';
+      $('#centreInput').value = state.settings.centre || '';
+      $('#settingsDialog').showModal();
+    });
+
     $('#newClassBtn').addEventListener('click', () => openClassDialog(false));
     $('#emptyNewClassBtn').addEventListener('click', () => openClassDialog(false));
     $('#editClassBtn').addEventListener('click', () => openClassDialog(true));
@@ -344,15 +381,15 @@
       if (!state.history.length || !confirm('Clear the recent register history from this device?')) return;
       state.history=[]; saveState(); showToast('Register history cleared');
     });
-    $('#settingsBtn').addEventListener('click', () => {
-      $('#teacherNameInput').value=state.settings.teacherName||''; $('#centreInput').value=state.settings.centre||''; $('#settingsDialog').showModal();
-    });
     $('#saveSettingsBtn').addEventListener('click', () => {
-      state.settings.teacherName=$('#teacherNameInput').value.trim(); state.settings.centre=$('#centreInput').value.trim(); saveState(); showToast('Settings saved');
+      state.settings.teacherName=$('#teacherNameInput').value.trim();
+      state.settings.centre=$('#centreInput').value.trim();
+      saveState();
+      showToast('Settings saved');
     });
-    $('#homeClassPill').addEventListener('click', () => {
-      if (!state.classes.length){ showToast('Create a class first'); return; }
-      navigate('registers');
+    ['Registers','Lessons','Slides','Games'].forEach(name => {
+      const btn = $(`#homeFrom${name}Btn`);
+      if (btn) btn.addEventListener('click', goHome);
     });
   }
 
