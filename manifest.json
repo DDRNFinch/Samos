@@ -1,7 +1,7 @@
 {
   "name": "Samos",
   "short_name": "Samos",
-  "description": "Samos classroom assistant for learners, registers, teaching resources and classroom activities.",
+  "description": "Samos offline classroom assistant for learners, timed registers, official course planning, schemes of work, lesson plans, presentations, quizzes and teaching resources.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -10,9 +10,29 @@
   "background_color": "#63c495",
   "theme_color": "#63c495",
   "icons": [
-    {"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
-    {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
-    {"src":"icon-maskable-192.png","sizes":"192x192","type":"image/png","purpose":"maskable"},
-    {"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
